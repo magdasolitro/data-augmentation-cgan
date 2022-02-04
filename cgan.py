@@ -1,18 +1,16 @@
 import argparse
 import os
 import numpy as np
-import math
 import pickle
 
-import torchvision.transforms as transforms
-
-from torch.autograd import Variable
-
+from torch.utils.data import DataLoader
 import torch.nn as nn
-import torch.nn.functional as F
 import torch
 
+from tracedataset.TraceDataset import TraceDataset
+
 os.makedirs("generated traces", exist_ok=True)
+
 
 # hyperparameters
 parser = argparse.ArgumentParser()
@@ -23,8 +21,7 @@ parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first 
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
 parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
-parser.add_argument("--n_classes", type=int, default=256, help="number of classes for dataset")         # number of classes = number of possible subkeys
-#parser.add_argument("--sample_interval", type=int, default=400, help="interval between each sample")   # DA DEFINIRE
+parser.add_argument("--n_classes", type=int, default=256, help="number of classes for dataset")          # number of classes = number of possible subkeys
 parser.add_argument("--trace_samples", type=int, default=80000, help="number of samples")
 parser.add_argument("--n_data", type=int, default=100000, help="number of traces")
 
@@ -45,26 +42,42 @@ traces = None
 
 # every element in the directory 'traces' is appended to an array
 for file in os.listdir(path + 'traces'):
-    open_file = open(path + 'traces/' + file, 'rb')
-    if 'random_traces' in file and not 'test' in file:
-        if traces is None:
-            traces = np.array(pickle.load(open_file))
-        else:
-            trace_temp = np.array(pickle.load(open_file))
-            traces = np.append(traces,trace_temp,axis=0)
+    with open(path + 'traces/' + file, 'rb') as f:
+        if 'random_traces' in file and not 'test' in file:
+            if traces is None:
+                traces = np.array(pickle.load(f))
+            else:
+                trace_temp = np.array(pickle.load(f))
+                traces = np.append(traces,trace_temp,axis=0)
 
 # load the labels
 labels = np.load(path + 'labels/s1.npy')
 
-# Associate each trace with its labels
-training_set = np.array([(traces[0].astype(np.int32), labels[0].astype(np.int32))])
+# ------------------------
+# Create the training set
+# ------------------------
 
-for i in range(1,traces.shape[0]):
-    traces[i] = traces[i].astype(np.int32)
-    labels[i] = labels[i].astype(np.int32)
-    training_set = np.append(training_set, [[traces[i], labels[i]]], axis=0)
+# Create list of indexes
+idx = np.arange(opt.n_data)
 
-# training_set.shape): (100000, 2)
+# Associate IDs to labels
+labels_dict = {idx[0] : labels[0]}
+
+for i in range(opt.n_data):
+    new_dict = {idx[i] : labels[i]}
+    labels_dict.update(new_dict)
+
+
+# Create the training set
+training_set = TraceDataset(idx, labels_dict, traces)
+
+# Set dataloader parameters
+dataloader = torch.utils.data.DataLoader(
+    training_set,
+    batch_size=opt.batch_size,
+    shuffle=True,
+)
+
 
 # ----------
 # Generator
@@ -101,7 +114,6 @@ class Generator(nn.Module):
 
         # Generate a trace out of gen_input, passing it through the model
         trace = self.model(gen_input)
-        print(trace.shape)
 
         # Reshape the tensor according to trace_shape (1st arg)
         # trace = trace.view(opt.trace_samples)
@@ -133,6 +145,7 @@ class Discriminator(nn.Module):
 
     def forward(self, trace, labels):
         # Concatenate label embedding and trace to produce input
+        print("Label embedding: " + str(self.label_embedding(labels).size()))
         d_in = torch.cat((trace, self.label_embedding(labels)), -1)
         classify = self.model(d_in)
 
@@ -157,34 +170,21 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 
 FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if cuda else torch.LongTensor
-IntTensor = torch.cuda.IntTensor if cuda else torch.IntTensor
-
-
-# DA RIVEDERE
-
-def sample_trace(n_row, batches_done):
-    """Saves a grid of generated digits ranging from 0 to n_classes"""
-
-    # Sample noise
-    z = FloatTensor(np.random.normal(0, 1, (n_row ** 2, opt.latent_dim)))
-
-    # Get labels ranging from 0 to n_classes for n_row
-    labels = np.array([num for _ in range(n_row) for num in range(n_row)])
-    labels = LongTensor(labels)
-    gen_trs = generator(z, labels)
-    save_trace(gen_trs.data, "images/%d.png" % batches_done, nrow=n_row, normalize=True)
 
 # ----------
 #  Training
 # ----------
 
 for epoch in range(opt.n_epochs):
-    for i,(real_trs,labels) in enumerate(training_set):
+    for i,(real_trs, labels) in enumerate(dataloader):
 
         # Adversarial ground truths
         valid = FloatTensor(opt.batch_size, 1).fill_(1.0)
         fake = FloatTensor(opt.batch_size, 1).fill_(0.0)
 
+        # Configure the input
+        real_trs = real_trs.type(LongTensor)    # cast real_trs to LongTensor
+        labels = labels.type(LongTensor)
 
         # -----------------
         #  Train Generator
@@ -195,8 +195,10 @@ for epoch in range(opt.n_epochs):
         # Sample noise
         z = FloatTensor(np.random.normal(0, 1, (opt.batch_size, opt.latent_dim)))
 
-        # Sample labels
-        gen_labels = IntTensor(np.random.randint(0, opt.n_classes, opt.batch_size))
+        # Sample label
+        # gen_labels = array containing 16 random values. Each value is comprised
+        # between 0 and 255 (1 byte = 8 bits = 256 possible values)
+        gen_labels = LongTensor(np.random.randint(0, opt.n_classes, (1,16)))
 
         # Generate a batch of traces
         gen_trs = generator(z, gen_labels)
@@ -216,6 +218,7 @@ for epoch in range(opt.n_epochs):
         optimizer_D.zero_grad()
 
         # Loss for real traces
+        # EXCEPTION
         validity_real = discriminator(real_trs, labels)             # prob. that the trace is real and is compatible with the label
         d_real_loss = adversarial_loss(validity_real, valid)
 
@@ -231,9 +234,6 @@ for epoch in range(opt.n_epochs):
 
         print(
             "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
-            % (epoch, opt.n_epochs, i, len(traces), d_loss.item(), g_loss.item())
+            % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
         )
 
-        batches_done = epoch * len(traces) + i
-        #if batches_done % opt.sample_interval == 0:
-        #    sample_image(n_row=10, batches_done=batches_done)
