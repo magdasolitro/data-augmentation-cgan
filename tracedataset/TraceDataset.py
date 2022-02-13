@@ -14,10 +14,8 @@ class TraceDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         'Generates one sample of data'
-        # Select sample
-
         # Load data and get label
         X = self.traces[index]
-        y = self.labels[index]
+        y = self.labels[index][0]   # only first byte
 
         return X, y
