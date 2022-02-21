@@ -85,6 +85,15 @@ dataloader = torch.utils.data.DataLoader(
 )
 
 
+class Reshape(nn.Module):
+    def __init__(self, shape):
+        super(Reshape, self).__init__()
+        self.shape = shape
+
+    def forward(self, x):
+        return x.view(self.shape)
+
+
 # ----------
 # Generator
 # ----------
@@ -93,21 +102,25 @@ class Generator(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
 
-        # 1 arg =  size of the dictionary of embeddings, 2 arg = the size of each embedding vector
+        # 1 arg = size of the dictionary of embeddings, 2 arg = the size of each embedding vector
         self.label_emb = nn.Embedding(opt.n_classes, opt.n_classes)
 
         self.model = nn.Sequential(
-            # dim. input = gen_labels length (after embedding) + noise vector length
-            nn.Linear(opt.n_classes + opt.latent_dim, 128),
-            nn.LeakyReLU(0.2),
-            nn.Linear(128, 256),
-            nn.LeakyReLU(0.2),
-            nn.Linear(256, 512),
-            nn.LeakyReLU(0.2),
-            nn.Linear(512, 1024),
-            nn.LeakyReLU(0.2),
-            nn.Linear(1024, 2 * opt.wnd_size),
-            nn.Tanh()
+            nn.Linear(opt.n_classes + opt.latent_dim, 250),
+            nn.LeakyReLU(),
+            nn.BatchNorm1d(250),
+
+            nn.Linear(250, 500),
+            nn.LeakyReLU(),
+            nn.BatchNorm1d(500),
+
+            nn.Linear(500, 1000),
+            nn.LeakyReLU(),
+            nn.BatchNorm1d(1000),
+
+            Reshape((opt.batch_size, 1000, 1)),
+            nn.ConvTranspose1d(1000, 1, 2 * opt.wnd_size, bias=False),
+            Reshape((opt.batch_size, -1))
         )
 
     def forward(self, noise, labels):
@@ -128,22 +141,27 @@ class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
 
-        self.label_embedding = nn.Embedding(opt.n_classes, opt.n_classes)
+        self.label_emb = nn.Embedding(opt.n_classes, opt.n_classes)
 
         self.model = nn.Sequential(
             # dim. input = dim. output generator + label length
+            # PERSONAL NOTE: label is embedded before being processed, so its size is n_classes = 256
             nn.Linear(2 * opt.wnd_size + opt.n_classes, 512),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(512, 512),
             nn.LeakyReLU(0.2, inplace=True),
+            nn.Dropout(0.2),
             nn.Linear(512, 512),
             nn.LeakyReLU(0.2, inplace=True),
+            nn.Dropout(0.2),
             nn.Linear(512, 1),      # output dim = 1 = prob. that the trace is real
         )
 
     def forward(self, trace, labels):
         # Concatenate label embedding and trace to produce input
-        d_in = torch.cat((trace, self.label_embedding(labels)), -1)
+        #print(trace.shape, self.label_emb(labels).shape)
+
+        d_in = torch.cat((trace, self.label_emb(labels)), -1)
         classify = self.model(d_in)
 
         return classify
@@ -167,6 +185,19 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 
 FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if cuda else torch.LongTensor
+
+def save_trace(gen_trs, labels, batch):
+    # Create a file to store the generated traces
+    filename1 = 'gen_trace_' + str(batch) + '.npy'
+    with open(filename1, 'x'):
+        np.save(filename1, gen_trs)
+
+    # Create a file for the labels
+    filename2 = 'labels_' + str(batch) + '.npy'
+    with open(filename2, 'x'):
+        np.save(filename2, labels)
+
+
 
 # ----------
 #  Training
@@ -197,6 +228,7 @@ for epoch in range(opt.n_epochs):
 
         # Generate a batch of traces
         gen_trs = generator(z, gen_labels)
+        #print("generated trace shape: " + str(gen_trs.shape))
 
         # Loss measures generator's ability to fool the discriminator
         validity = discriminator(gen_trs, gen_labels)
@@ -230,4 +262,7 @@ for epoch in range(opt.n_epochs):
             "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
             % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
         )
+
+
+
 
