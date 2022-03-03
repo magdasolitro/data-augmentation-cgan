@@ -1,6 +1,8 @@
 import argparse
 import os
 import numpy as np
+from matplotlib import pyplot as plt
+
 
 from torch.utils.data import DataLoader
 import torch.nn as nn
@@ -20,11 +22,10 @@ parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first 
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
 parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
-parser.add_argument("--n_classes", type=int, default=256, help="number of classes for dataset")          # number of classes = number of possible subkeys
-parser.add_argument("--trace_samples", type=int, default=51250, help="number of samples")
-parser.add_argument("--n_data", type=int, default=10000, help="number of traces")
+parser.add_argument("--n_classes", type=int, default=256, help="number of classes for dataset")
 parser.add_argument("--target_op", type=str, default='s', help="the intermediate result we want to attack")
 parser.add_argument("--wnd_size", type=int, default=250, help="window size around a time point")
+parser.add_argument("--sample_interval", type=int, default=400, help="interval between trace sampling")
 
 opt = parser.parse_args()
 print(opt)
@@ -42,40 +43,62 @@ path = '/Users/magdalenasolitro/Desktop/AI&CS MSc. UniUD/Small Project in CS/dat
 
 # retrieve significant trace window around the first timepoint
 time_points = np.load(path + 'timepoints/' + opt.target_op + '.npy')
+
+# time point in the first round in which AES applies SubBytes to the first byte of the state
 this_timepoint = time_points[0]
+
+# select window around the point
 start = this_timepoint - opt.wnd_size
 end = this_timepoint + opt.wnd_size
 
-# WARNING! temporarily working with just one file, loading all of them is too much :c
-traces = np.load(path + 'tracedata/random_keys_traces_0.npy', allow_pickle=True)
+# auxiliary data structures for trace processing
+num_file = 0
+trimmed_traces = None
 
-# keep only the trace portion in the significant window
-trimmed_traces = np.array([], dtype=int)
+# load all the files
+print("Loading the dataset files...")
+for file in os.listdir(path + 'tracedata/'):
+    if 'fixed' not in file and '.DS_Store' not in file:
+        print("Processing file " + file + '...', end=' ')
+        traces = np.load(path + 'tracedata/' + file, allow_pickle=True)
 
-for r in range(traces.shape[0]):
-    tmp = traces[r, :]      # select r-th row
-    tmp = tmp[start:end]   # select samples in the significant window
-    trimmed_traces = np.append(trimmed_traces, tmp, axis=0)
+        # keep only the trace portion in the significant window
+        for r in range(traces.shape[0]):
+            tmp = traces[r, :]    # select r-th row
+            tmp = tmp[start:end]  # select samples in the significant window
+            tmp = np.reshape(tmp, (1, -1))
+            if trimmed_traces is None:
+                trimmed_traces = tmp
+            else:
+                trimmed_traces = np.append(trimmed_traces, tmp, axis=0)
+        print('Done!')
+    num_file += 1
 
-n_columns = end-start
-trimmed_traces = np.reshape(trimmed_traces, (traces.shape[0], n_columns))       # new shape: (10000, 3343)
+print("Done!")
 
-# load the labels
+# ------------
+# Training Set
+# ------------
+print("Creating the training set...")
+
+# Compute number of total traces and the number of samples
+n_data = trimmed_traces.shape[0]
+n_samples = trimmed_traces[1]
+
+labels_dict = dict()            # dictionary that associates
+idx = np.arange(n_data)         # list of indexes for the dataset
+
+# Load the labels
 labels = np.load(path + 'realvalues/' + opt.target_op + '.npy')
 
-# Create list of indexes
-idx = np.arange(opt.n_data)
-
 # Associate IDs to labels
-labels_dict = {idx[0]: labels[:, 0]}
-
-for i in range(opt.n_data):
+for i in range(n_data):
     new_dict = {idx[i]: labels[:, i]}
     labels_dict.update(new_dict)
 
-
-# Create the training set
 training_set = TraceDataset(idx, labels_dict, trimmed_traces)
+
+print('Done!')
 
 # Set dataloader parameters
 dataloader = torch.utils.data.DataLoader(
@@ -186,22 +209,33 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if cuda else torch.LongTensor
 
-def save_trace(gen_trs, labels, batch):
+def save_trace(trs, labels, batches_done):
+    """Saves a grid of generated digits ranging from 0 to n_classes"""
     # Create a file to store the generated traces
-    filename1 = 'gen_trace_' + str(batch) + '.npy'
+    filename1 = 'generated traces/gen_trace_' + str(batches_done) + '.npy'
+
+    if filename1 in os.listdir('./generated traces/'):    # check existance of another file with identical name
+        os.remove(filename1)                # if that's the case, remove file
+
     with open(filename1, 'x'):
-        np.save(filename1, gen_trs)
+        np.save(filename1, trs.detach())
 
     # Create a file for the labels
-    filename2 = 'labels_' + str(batch) + '.npy'
+    filename2 = 'generated traces/labels_' + str(batches_done) + '.npy'
+
+    if filename2 in os.listdir('./generated traces/'):
+        os.remove(filename2)
+
     with open(filename2, 'x'):
         np.save(filename2, labels)
-
 
 
 # ----------
 #  Training
 # ----------
+
+# Keep track of the loss
+y = np.zeros(opt.n_epochs)
 
 for epoch in range(opt.n_epochs):
     for i, (real_trs, labels) in enumerate(dataloader):
@@ -228,7 +262,6 @@ for epoch in range(opt.n_epochs):
 
         # Generate a batch of traces
         gen_trs = generator(z, gen_labels)
-        #print("generated trace shape: " + str(gen_trs.shape))
 
         # Loss measures generator's ability to fool the discriminator
         validity = discriminator(gen_trs, gen_labels)
@@ -255,6 +288,9 @@ for epoch in range(opt.n_epochs):
         # Total discriminator loss
         d_loss = (d_real_loss + d_fake_loss) / 2
 
+        # Update loss value
+        y[epoch] = d_loss.detach().numpy()
+
         d_loss.backward()
         optimizer_D.step()
 
@@ -263,6 +299,17 @@ for epoch in range(opt.n_epochs):
             % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
         )
 
+        batches_done = epoch * len(dataloader) + i
+        if batches_done % opt.sample_interval == 0:
+            save_trace(gen_trs, labels, batches_done=batches_done)
 
+        # Plot the loss
+        if epoch == opt.n_epochs-1 and i == opt.batch_size-1:
+            print(y)
+            x = np.arange(0, opt.n_epochs)
 
-
+            plt.title("Total loss")
+            plt.xlabel("Epoch")
+            plt.ylabel("Loss")
+            plt.plot(x, y)
+            plt.show()
