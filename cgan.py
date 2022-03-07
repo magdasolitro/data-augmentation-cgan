@@ -129,21 +129,21 @@ class Generator(nn.Module):
         self.label_emb = nn.Embedding(opt.n_classes, opt.n_classes)
 
         self.model = nn.Sequential(
-            nn.Linear(opt.n_classes + opt.latent_dim, 250),
+                      # 256 (noise) + 100 (emb. label)
+            nn.Linear(opt.n_classes + opt.latent_dim, 512),
             nn.LeakyReLU(),
-            nn.BatchNorm1d(250),
+            nn.BatchNorm1d(512),
 
-            nn.Linear(250, 500),
+            nn.Linear(512, 1024),
             nn.LeakyReLU(),
-            nn.BatchNorm1d(500),
+            nn.BatchNorm1d(1024),
 
-            nn.Linear(500, 1000),
+            nn.Linear(1024, 2048),
             nn.LeakyReLU(),
-            nn.BatchNorm1d(1000),
+            nn.BatchNorm1d(2048),
 
-            Reshape((opt.batch_size, 1000, 1)),
-            nn.ConvTranspose1d(1000, 1, 2 * opt.wnd_size, bias=False),
-            Reshape((opt.batch_size, -1))
+            nn.Linear(2048, 500),
+            nn.Tanh(),
         )
 
     def forward(self, noise, labels):
@@ -171,13 +171,17 @@ class Discriminator(nn.Module):
             # PERSONAL NOTE: label is embedded before being processed, so its size is n_classes = 256
             nn.Linear(2 * opt.wnd_size + opt.n_classes, 512),
             nn.LeakyReLU(0.2, inplace=True),
+
             nn.Linear(512, 512),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Dropout(0.2),
+
             nn.Linear(512, 512),
             nn.LeakyReLU(0.2, inplace=True),
+
             nn.Dropout(0.2),
+
             nn.Linear(512, 1),      # output dim = 1 = prob. that the trace is real
+            nn.Sigmoid()
         )
 
     def forward(self, trace, labels):
@@ -214,7 +218,7 @@ def save_trace(trs, labels, batches_done):
     # Create a file to store the generated traces
     filename1 = 'generated traces/gen_trace_' + str(batches_done) + '.npy'
 
-    if filename1 in os.listdir('./generated traces/'):    # check existance of another file with identical name
+    if filename1 in os.listdir('./generated traces/'):    # check existence of another file with identical name
         os.remove(filename1)                # if that's the case, remove file
 
     with open(filename1, 'x'):
@@ -235,7 +239,8 @@ def save_trace(trs, labels, batches_done):
 # ----------
 
 # Keep track of the loss
-y = np.zeros(opt.n_epochs)
+y_g = np.zeros(opt.n_epochs)
+y_d = np.zeros(opt.n_epochs)
 
 for epoch in range(opt.n_epochs):
     for i, (real_trs, labels) in enumerate(dataloader):
@@ -288,8 +293,11 @@ for epoch in range(opt.n_epochs):
         # Total discriminator loss
         d_loss = (d_real_loss + d_fake_loss) / 2
 
-        # Update loss value
-        y[epoch] = d_loss.detach().numpy()
+        # Update Generator's loss value
+        y_g[epoch] = g_loss.item()
+
+        # Update Discriminator's loss value
+        y_d[epoch] = d_loss.item()
 
         d_loss.backward()
         optimizer_D.step()
@@ -303,13 +311,20 @@ for epoch in range(opt.n_epochs):
         if batches_done % opt.sample_interval == 0:
             save_trace(gen_trs, labels, batches_done=batches_done)
 
-        # Plot the loss
+        # Plot Generator's and Discriminator's loss
         if epoch == opt.n_epochs-1 and i == opt.batch_size-1:
-            print(y)
             x = np.arange(0, opt.n_epochs)
 
-            plt.title("Total loss")
+            plot_gen = plt.figure(1)
+            plt.title("Generator's loss")
             plt.xlabel("Epoch")
             plt.ylabel("Loss")
-            plt.plot(x, y)
+            plt.plot(x, y_g)
+
+            plot_disc = plt.figure(2)
+            plt.title("Discriminator's loss")
+            plt.xlabel("Epoch")
+            plt.ylabel("Loss")
+            plt.plot(x, y_d)
+
             plt.show()
