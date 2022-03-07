@@ -311,9 +311,9 @@ for epoch in range(opt.n_epochs):
             % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
         )
 
-        batches_done = epoch * len(dataloader) + i
-        if batches_done % opt.sample_interval == 0:
-            save_trace(gen_trs, labels, batches_done=batches_done)
+        # batches_done = epoch * len(dataloader) + i
+        # if batches_done % opt.sample_interval == 0:
+        #     save_trace(gen_trs, labels, batches_done=batches_done)
 
 
         # Plot the loss
