@@ -1,9 +1,11 @@
 import argparse
 import os
 import numpy as np
-from matplotlib import pyplot as plt
 
 
+import sys
+if sys.platform == 'win32' :
+    import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch
@@ -39,7 +41,7 @@ cuda = True if torch.cuda.is_available() else False
 # Load the dataset
 # ----------------
 
-path = '/Users/magdalenasolitro/Desktop/AI&CS MSc. UniUD/Small Project in CS/dataset_joey/'
+path =  'D:/dataset_joey/' if sys.platform == 'win32' else '/media/usb/MIG/2.0 TB Volume/dataset_joey/'
 
 # retrieve significant trace window around the first timepoint
 time_points = np.load(path + 'timepoints/' + opt.target_op + '.npy')
@@ -57,20 +59,22 @@ trimmed_traces = None
 
 # load all the files
 print("Loading the dataset files...")
-for file in os.listdir(path + 'tracedata/'):
+for i in range(20):
+    file = path +'tracedata/'+ ('random_keys_traces_{}'.format(i) ) + '.npy' 
     if 'fixed' not in file and '.DS_Store' not in file:
+         
+    
         print("Processing file " + file + '...', end=' ')
-        traces = np.load(path + 'tracedata/' + file, allow_pickle=True)
+        traces = np.load(file, allow_pickle=True)
 
         # keep only the trace portion in the significant window
-        for r in range(traces.shape[0]):
-            tmp = traces[r, :]    # select r-th row
-            tmp = tmp[start:end]  # select samples in the significant window
-            tmp = np.reshape(tmp, (1, -1))
-            if trimmed_traces is None:
-                trimmed_traces = tmp
-            else:
-                trimmed_traces = np.append(trimmed_traces, tmp, axis=0)
+
+
+
+        if trimmed_traces is None:
+            trimmed_traces = traces[:,start:end]
+        else:
+            trimmed_traces = np.append(trimmed_traces, traces[:,start:end], axis=0)
         print('Done!')
     num_file += 1
 
@@ -304,12 +308,13 @@ for epoch in range(opt.n_epochs):
             save_trace(gen_trs, labels, batches_done=batches_done)
 
         # Plot the loss
-        if epoch == opt.n_epochs-1 and i == opt.batch_size-1:
-            print(y)
-            x = np.arange(0, opt.n_epochs)
-
-            plt.title("Total loss")
-            plt.xlabel("Epoch")
-            plt.ylabel("Loss")
-            plt.plot(x, y)
-            plt.show()
+        if sys.platform == 'win32' :
+            if epoch == opt.n_epochs-1 and i == opt.batch_size-1:
+                print(y)
+                x = np.arange(0, opt.n_epochs)
+    
+                plt.title("Total loss")
+                plt.xlabel("Epoch")
+                plt.ylabel("Loss")
+                plt.plot(x, y)
+                plt.show()
