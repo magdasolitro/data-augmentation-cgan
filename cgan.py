@@ -41,7 +41,7 @@ cuda = True if torch.cuda.is_available() else False
 # Load the dataset
 # ----------------
 
-path =  'D:/dataset_joey/' if sys.platform == 'win32' else '/media/usb/MIG/2.0 TB Volume/dataset_joey/'
+path =  'D:/dataset_joey/' if sys.platform == 'win32' else '/media/usb/MIG/2.0 TB Volume/dataset_furious/'
 
 # retrieve significant trace window around the first timepoint
 time_points = np.load(path + 'timepoints/' + opt.target_op + '.npy')
