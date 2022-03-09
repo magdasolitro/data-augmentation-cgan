@@ -1,9 +1,12 @@
 import argparse
 import os
+import sys
+
 import numpy as np
 from matplotlib import pyplot as plt
 
-
+if sys.platform == 'win32' :
+    import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch
@@ -172,7 +175,6 @@ class Discriminator(nn.Module):
         self.label_emb = nn.Embedding(opt.n_classes, self.embedding_dim)
 
         self.model = nn.Sequential(
-            # dim. input = dim. output generator + label length
             nn.Conv1d(20, 32, 5, stride=2, bias=False),
             nn.BatchNorm1d(32),
             nn.LeakyReLU(),
@@ -208,7 +210,6 @@ class Discriminator(nn.Module):
         )
 
         output = pre_processing(embedded)
-        print('disc: ' + str(trace.shape) + ' ' + str(output.shape))
         d_in = torch.cat((trace, output), -1)
         classify = self.model(d_in)
 
@@ -234,6 +235,7 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if cuda else torch.LongTensor
 
+'''
 def save_trace(trs, labels, batches_done):
     """Saves a grid of generated digits ranging from 0 to n_classes"""
     # Create a file to store the generated traces
@@ -253,7 +255,7 @@ def save_trace(trs, labels, batches_done):
 
     with open(filename2, 'x'):
         np.save(filename2, labels)
-
+'''
 
 # ----------
 #  Training
@@ -265,7 +267,6 @@ y_d = np.zeros(opt.n_epochs)
 
 for epoch in range(opt.n_epochs):
     for i, (real_trs, labels) in enumerate(dataloader):
-
         # Adversarial ground truths
         valid = FloatTensor(opt.batch_size, 1).fill_(1.0)
         fake = FloatTensor(opt.batch_size, 1).fill_(0.0)
@@ -304,8 +305,7 @@ for epoch in range(opt.n_epochs):
         optimizer_D.zero_grad()
 
         # Loss for real traces
-        print(real_trs.shape)
-        real_trs = real_trs.view((50, 20, 2*opt.wnd_size))
+        real_trs = real_trs.view((50, 1, 2*opt.wnd_size))
         validity_real = discriminator(real_trs, labels)            # prob.trace is real and is compatible with the label
         d_real_loss = adversarial_loss(validity_real, valid)
 
@@ -325,29 +325,41 @@ for epoch in range(opt.n_epochs):
         d_loss.backward()
         optimizer_D.step()
 
+        '''
         print(
             "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
             % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
         )
-
+        
         batches_done = epoch * len(dataloader) + i
-        if batches_done % opt.sample_interval == 0:
-            save_trace(gen_trs, labels, batches_done=batches_done)
+        '''
+        
+        # Plot the loss
+        if sys.platform == 'win32':
 
-        # Plot Generator's and Discriminator's loss
-        if epoch == opt.n_epochs-1 and i == opt.batch_size-1:
-            x = np.arange(0, opt.n_epochs)
+            if epoch == opt.n_epochs - 1 and i == opt.batch_size - 1:
+                x = np.arange(0, opt.n_epochs)
 
-            plot_gen = plt.figure(1)
-            plt.title("Generator's loss")
-            plt.xlabel("Epoch")
-            plt.ylabel("Loss")
-            plt.plot(x, y_g)
+                plot_gen = plt.figure(1)
+                plt.title("Generator's loss")
+                plt.xlabel("Epoch")
+                plt.ylabel("Loss")
+                plt.plot(x, y_g)
 
-            plot_disc = plt.figure(2)
-            plt.title("Discriminator's loss")
-            plt.xlabel("Epoch")
-            plt.ylabel("Loss")
-            plt.plot(x, y_d)
+                plot_disc = plt.figure(2)
+                plt.title("Discriminator's loss")
+                plt.xlabel("Epoch")
+                plt.ylabel("Loss")
+                plt.plot(x, y_d)
 
-            plt.show()
+                plt.show()
+
+        print(
+            "[Epoch %d/%d]  [D loss: %f] [G loss: %f]"
+            % (epoch, opt.n_epochs, d_loss.item(), g_loss.item())
+        )
+
+np.save('Loss_gen', y_g)
+np.save('Loss_disc', y_d)
+
+
