@@ -27,7 +27,7 @@ parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads 
 parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
 parser.add_argument("--n_classes", type=int, default=256, help="number of classes for dataset")
 parser.add_argument("--target_op", type=str, default='s', help="the intermediate result we want to attack")
-parser.add_argument("--wnd_size", type=int, default=28, help="window size around a time point")
+parser.add_argument("--wnd_size", type=int, default=280, help="window size around a time point")
 parser.add_argument("--sample_interval", type=int, default=400, help="interval between trace sampling")
 
 opt = parser.parse_args()
@@ -149,7 +149,10 @@ class Generator(nn.Module):
             nn.LeakyReLU(),
 
             nn.AvgPool1d(1, stride=10),
-            nn.ConvTranspose1d(50, 20, 5, bias=False),
+            nn.ConvTranspose1d(50, 10, 5, bias=False),
+
+            nn.Flatten(),
+            Reshape((50, 1, -1)),
             nn.Sigmoid()
         )
 
@@ -175,7 +178,7 @@ class Discriminator(nn.Module):
         self.label_emb = nn.Embedding(opt.n_classes, self.embedding_dim)
 
         self.model = nn.Sequential(
-            nn.Conv1d(20, 32, 5, stride=2, bias=False),
+            nn.Conv1d(1, 32, 5, stride=2, bias=False),
             nn.BatchNorm1d(32),
             nn.LeakyReLU(),
 
@@ -190,14 +193,14 @@ class Discriminator(nn.Module):
             nn.AvgPool1d(2, stride=2),
             nn.Flatten(),
 
-            #nn.Linear(..., 50),
-            #nn.ReLU(),
-            #nn.Linear(50, 100),
-            #nn.ReLU(),
-            #nn.Linear(100, 50),
-            #nn.ReLU(),
-            #nn.Linear(50, 1),
-            #nn.Sigmoid()
+            nn.Linear(12288, 50),
+            nn.ReLU(),
+            nn.Linear(50, 100),
+            nn.ReLU(),
+            nn.Linear(100, 50),
+            nn.ReLU(),
+            nn.Linear(50, 1),
+            nn.Sigmoid()
         )
 
     def forward(self, trace, labels):
@@ -206,7 +209,7 @@ class Discriminator(nn.Module):
 
         pre_processing = nn.Sequential(
             nn.Linear(8, 1000),
-            Reshape((50, 20, 50)),
+            Reshape((50, 1, 1000)),
         )
 
         output = pre_processing(embedded)
