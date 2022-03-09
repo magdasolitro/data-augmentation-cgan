@@ -24,7 +24,7 @@ parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads 
 parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
 parser.add_argument("--n_classes", type=int, default=256, help="number of classes for dataset")
 parser.add_argument("--target_op", type=str, default='s', help="the intermediate result we want to attack")
-parser.add_argument("--wnd_size", type=int, default=250, help="window size around a time point")
+parser.add_argument("--wnd_size", type=int, default=28, help="window size around a time point")
 parser.add_argument("--sample_interval", type=int, default=400, help="interval between trace sampling")
 
 opt = parser.parse_args()
@@ -39,6 +39,7 @@ cuda = True if torch.cuda.is_available() else False
 # Load the dataset
 # ----------------
 
+# path =  'D:/dataset_joey/' if sys.platform == 'win32' else '/media/usb/MIG/2.0 TB Volume/dataset_furious/'
 path = '/Users/magdalenasolitro/Desktop/AI&CS MSc. UniUD/Small Project in CS/dataset_joey/'
 
 # retrieve significant trace window around the first timepoint
@@ -57,20 +58,17 @@ trimmed_traces = None
 
 # load all the files
 print("Loading the dataset files...")
-for file in os.listdir(path + 'tracedata/'):
+for i in range(20):
+    file = path + 'tracedata/' + ('random_keys_traces_{}'.format(i)) + '.npy'
     if 'fixed' not in file and '.DS_Store' not in file:
-        print("Processing file " + file + '...', end=' ')
-        traces = np.load(path + 'tracedata/' + file, allow_pickle=True)
 
-        # keep only the trace portion in the significant window
-        for r in range(traces.shape[0]):
-            tmp = traces[r, :]    # select r-th row
-            tmp = tmp[start:end]  # select samples in the significant window
-            tmp = np.reshape(tmp, (1, -1))
-            if trimmed_traces is None:
-                trimmed_traces = tmp
-            else:
-                trimmed_traces = np.append(trimmed_traces, tmp, axis=0)
+        print("Processing file " + file + '...', end=' ')
+        traces = np.load(file, allow_pickle=True)
+
+        if trimmed_traces is None:
+            trimmed_traces = traces[:, start:end]
+        else:
+            trimmed_traces = np.append(trimmed_traces, traces[:, start:end], axis=0)
         print('Done!')
     num_file += 1
 
@@ -129,21 +127,27 @@ class Generator(nn.Module):
         self.label_emb = nn.Embedding(opt.n_classes, opt.n_classes)
 
         self.model = nn.Sequential(
-                      # 256 (noise) + 100 (emb. label)
-            nn.Linear(opt.n_classes + opt.latent_dim, 512),
+            nn.Linear(opt.n_classes + opt.latent_dim, 500),
+            Reshape((50, 1, 500)),      # (batch size, n_channels, signal_length)
+            nn.ConvTranspose1d(1, 500, 5, bias=False),
+            nn.BatchNorm1d(500),
             nn.LeakyReLU(),
-            nn.BatchNorm1d(512),
 
-            nn.Linear(512, 1024),
+            nn.ConvTranspose1d(500, 250, 5, bias=False),
+            nn.BatchNorm1d(250),
             nn.LeakyReLU(),
-            nn.BatchNorm1d(1024),
 
-            nn.Linear(1024, 2048),
+            nn.ConvTranspose1d(250, 100, 5, bias=False),
+            nn.BatchNorm1d(100),
             nn.LeakyReLU(),
-            nn.BatchNorm1d(2048),
 
-            nn.Linear(2048, 500),
-            nn.Tanh(),
+            nn.ConvTranspose1d(100, 50, 5, bias=False),
+            nn.BatchNorm1d(50),
+            nn.LeakyReLU(),
+
+            nn.AvgPool1d(1, stride=10),
+            nn.ConvTranspose1d(50, 20, 5, bias=False),
+            nn.Sigmoid()
         )
 
     def forward(self, noise, labels):
@@ -164,31 +168,48 @@ class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
 
-        self.label_emb = nn.Embedding(opt.n_classes, opt.n_classes)
+        self.embedding_dim = 8
+        self.label_emb = nn.Embedding(opt.n_classes, self.embedding_dim)
 
         self.model = nn.Sequential(
             # dim. input = dim. output generator + label length
-            # PERSONAL NOTE: label is embedded before being processed, so its size is n_classes = 256
-            nn.Linear(2 * opt.wnd_size + opt.n_classes, 512),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv1d(20, 32, 5, stride=2, bias=False),
+            nn.BatchNorm1d(32),
+            nn.LeakyReLU(),
 
-            nn.Linear(512, 512),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv1d(32, 64, 5, stride=2, bias=False),
+            nn.BatchNorm1d(64),
+            nn.LeakyReLU(),
 
-            nn.Linear(512, 512),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv1d(64, 128, 5, stride=2, bias=False),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(),
 
-            nn.Dropout(0.2),
+            nn.AvgPool1d(2, stride=2),
+            nn.Flatten(),
 
-            nn.Linear(512, 1),      # output dim = 1 = prob. that the trace is real
-            nn.Sigmoid()
+            #nn.Linear(..., 50),
+            #nn.ReLU(),
+            #nn.Linear(50, 100),
+            #nn.ReLU(),
+            #nn.Linear(100, 50),
+            #nn.ReLU(),
+            #nn.Linear(50, 1),
+            #nn.Sigmoid()
         )
 
     def forward(self, trace, labels):
         # Concatenate label embedding and trace to produce input
-        #print(trace.shape, self.label_emb(labels).shape)
+        embedded = self.label_emb(labels)
 
-        d_in = torch.cat((trace, self.label_emb(labels)), -1)
+        pre_processing = nn.Sequential(
+            nn.Linear(8, 1000),
+            Reshape((50, 20, 50)),
+        )
+
+        output = pre_processing(embedded)
+        print('disc: ' + str(trace.shape) + ' ' + str(output.shape))
+        d_in = torch.cat((trace, output), -1)
         classify = self.model(d_in)
 
         return classify
@@ -268,7 +289,7 @@ for epoch in range(opt.n_epochs):
         # Generate a batch of traces
         gen_trs = generator(z, gen_labels)
 
-        # Loss measures generator's ability to fool the discriminator
+        # Measure generator's ability to fool the discriminator
         validity = discriminator(gen_trs, gen_labels)
         g_loss = adversarial_loss(validity, valid)
 
@@ -283,6 +304,8 @@ for epoch in range(opt.n_epochs):
         optimizer_D.zero_grad()
 
         # Loss for real traces
+        print(real_trs.shape)
+        real_trs = real_trs.view((50, 20, 2*opt.wnd_size))
         validity_real = discriminator(real_trs, labels)            # prob.trace is real and is compatible with the label
         d_real_loss = adversarial_loss(validity_real, valid)
 
