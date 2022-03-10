@@ -173,8 +173,7 @@ class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
 
-        self.embedding_dim = 8
-        self.label_emb = nn.Embedding(opt.n_classes, self.embedding_dim)
+        self.label_emb = nn.Embedding(opt.n_classes, opt.n_classes)
 
         self.model = nn.Sequential(
             nn.Conv1d(1, 32, 5, stride=2, bias=False),
@@ -192,7 +191,7 @@ class Discriminator(nn.Module):
             nn.AvgPool1d(2, stride=2),
             nn.Flatten(),
 
-            nn.Linear(12288, 50),
+            nn.Linear(6272, 50),
             nn.ReLU(),
             nn.Linear(50, 100),
             nn.ReLU(),
@@ -205,14 +204,9 @@ class Discriminator(nn.Module):
     def forward(self, trace, labels):
         # Concatenate label embedding and trace to produce input
         embedded = self.label_emb(labels)
+        embedded = embedded.view(50, 1, -1)
 
-        pre_processing = nn.Sequential(
-            nn.Linear(8, 1000),
-            Reshape((50, 1, 1000)),
-        )
-
-        output = pre_processing(embedded)
-        d_in = torch.cat((trace, output), -1)
+        d_in = torch.cat((trace, embedded), -1)
         classify = self.model(d_in)
 
         return classify
