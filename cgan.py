@@ -226,9 +226,12 @@ generator = Generator()
 discriminator = Discriminator()
 
 if cuda:
-    generator.cuda()
-    discriminator.cuda()
-    adversarial_loss.cuda()
+
+    device = torch.device("cuda") 
+    generator.to(device)
+    discriminator.to(device)
+    adversarial_loss.to(device)
+    
 
 # Optimizers
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
