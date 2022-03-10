@@ -1,10 +1,9 @@
 import argparse
 import os
-import sys
 
 import numpy as np
-from matplotlib import pyplot as plt
 
+import sys
 if sys.platform == 'win32' :
     import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
@@ -328,19 +327,14 @@ for epoch in range(opt.n_epochs):
         d_loss.backward()
         optimizer_D.step()
 
-        '''
-        print(
-            "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
-            % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
-        )
-        
-        batches_done = epoch * len(dataloader) + i
-        '''
-        
-        # Plot the loss
-        if sys.platform == 'win32':
+        # batches_done = epoch * len(dataloader) + i
+        # if batches_done % opt.sample_interval == 0:
+        #     save_trace(gen_trs, labels, batches_done=batches_done)
 
-            if epoch == opt.n_epochs - 1 and i == opt.batch_size - 1:
+
+        # Plot the loss
+        if sys.platform == 'win32' :
+            if epoch == opt.n_epochs-1 and i == opt.batch_size-1:
                 x = np.arange(0, opt.n_epochs)
 
                 plot_gen = plt.figure(1)
@@ -357,12 +351,11 @@ for epoch in range(opt.n_epochs):
 
                 plt.show()
 
-        print(
+    print(
             "[Epoch %d/%d]  [D loss: %f] [G loss: %f]"
             % (epoch, opt.n_epochs, d_loss.item(), g_loss.item())
         )
 
 np.save('Loss_gen', y_g)
 np.save('Loss_disc', y_d)
-
 
