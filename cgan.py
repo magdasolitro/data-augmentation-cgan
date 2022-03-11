@@ -42,7 +42,7 @@ cuda = True if torch.cuda.is_available() else False
 # ----------------
 
 # path =  'D:/dataset_joey/' if sys.platform == 'win32' else '/media/usb/MIG/2.0 TB Volume/dataset_furious/'
-path = '/Users/magdalenasolitro/Desktop/AI&CS MSc. UniUD/Small Project in CS/dataset_joey/' if sys.platform == 'win32'  else '/media/usb/MIG/2.0 TB Volume/dataset_furious/'
+path = '/Users/magdalenasolitro/Desktop/AI&CS MSc. UniUD/Small Project in CS/dataset_joey/' #if sys.platform == 'win32'  else '/media/usb/MIG/2.0 TB Volume/dataset_furious/'
 
 # retrieve significant trace window around the first timepoint
 time_points = np.load(path + 'timepoints/' + opt.target_op + '.npy')
@@ -131,24 +131,24 @@ class Generator(nn.Module):
         self.model = nn.Sequential(
             nn.Linear(opt.n_classes + opt.latent_dim, 500),
             Reshape((50, 1, 500)),      # (batch size, n_channels, signal_length)
-            nn.ConvTranspose1d(1, 500, 5, bias=False),
+            nn.ConvTranspose1d(1, 500, (5,), bias=False),
             nn.BatchNorm1d(500),
             nn.LeakyReLU(),
 
-            nn.ConvTranspose1d(500, 250, 5, bias=False),
+            nn.ConvTranspose1d(500, 250, (5,), bias=False),
             nn.BatchNorm1d(250),
             nn.LeakyReLU(),
 
-            nn.ConvTranspose1d(250, 100, 5, bias=False),
+            nn.ConvTranspose1d(250, 100, (5,), bias=False),
             nn.BatchNorm1d(100),
             nn.LeakyReLU(),
 
-            nn.ConvTranspose1d(100, 50, 5, bias=False),
+            nn.ConvTranspose1d(100, 50, (5,), bias=False),
             nn.BatchNorm1d(50),
             nn.LeakyReLU(),
 
             nn.AvgPool1d(1, stride=10),
-            nn.ConvTranspose1d(50, 10, 5, bias=False),
+            nn.ConvTranspose1d(50, 10, (5,), bias=False),
 
             nn.Flatten(),
             Reshape((50, 1, -1)),
@@ -176,15 +176,15 @@ class Discriminator(nn.Module):
         self.label_emb = nn.Embedding(opt.n_classes, opt.n_classes)
 
         self.model = nn.Sequential(
-            nn.Conv1d(1, 32, 5, stride=2, bias=False),
+            nn.Conv1d(1, 32, (5,), stride=(2,), padding='same', bias=False),
             nn.BatchNorm1d(32),
             nn.LeakyReLU(),
 
-            nn.Conv1d(32, 64, 5, stride=2, bias=False),
+            nn.Conv1d(32, 64, (5,), stride=(2,), padding='same', bias=False),
             nn.BatchNorm1d(64),
             nn.LeakyReLU(),
 
-            nn.Conv1d(64, 128, 5, stride=2, bias=False),
+            nn.Conv1d(64, 128, (5,), stride=(2,), padding='same', bias=False),
             nn.BatchNorm1d(128),
             nn.LeakyReLU(),
 
@@ -220,7 +220,6 @@ generator = Generator()
 discriminator = Discriminator()
 
 if cuda:
-
     device = torch.device("cuda") 
     generator.to(device)
     discriminator.to(device)
@@ -304,7 +303,7 @@ for epoch in range(opt.n_epochs):
         optimizer_D.zero_grad()
 
         # Loss for real traces
-        real_trs = real_trs.view((50, 1, 2*opt.wnd_size))
+        real_trs = real_trs.view((50, 1, 2 * opt.wnd_size))
         validity_real = discriminator(real_trs, labels)            # prob.trace is real and is compatible with the label
         d_real_loss = adversarial_loss(validity_real, valid)
 
@@ -348,7 +347,7 @@ for epoch in range(opt.n_epochs):
 
                 plt.show()
 
-    print(
+        print(
             "[Epoch %d/%d]  [D loss: %f] [G loss: %f]"
             % (epoch, opt.n_epochs, d_loss.item(), g_loss.item())
         )
