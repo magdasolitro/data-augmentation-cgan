@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 import sys
-if sys.platform == 'win32' :
+if sys.platform == 'win32' or sys.platform == 'darwin':
     import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 import torch.nn as nn
@@ -26,7 +26,7 @@ parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads 
 parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
 parser.add_argument("--n_classes", type=int, default=256, help="number of classes for dataset")
 parser.add_argument("--target_op", type=str, default='s', help="the intermediate result we want to attack")
-parser.add_argument("--wnd_size", type=int, default=280, help="window size around a time point")
+parser.add_argument("--wnd_size", type=int, default=560, help="window size around a time point")
 parser.add_argument("--sample_interval", type=int, default=400, help="interval between trace sampling")
 
 opt = parser.parse_args()
@@ -41,8 +41,10 @@ cuda = True if torch.cuda.is_available() else False
 # Load the dataset
 # ----------------
 
-# path =  'D:/dataset_joey/' if sys.platform == 'win32' else '/media/usb/MIG/2.0 TB Volume/dataset_furious/'
-path = '/Users/magdalenasolitro/Desktop/AI&CS MSc. UniUD/Small Project in CS/dataset_joey/' #if sys.platform == 'win32'  else '/media/usb/MIG/2.0 TB Volume/dataset_furious/'
+if sys.platform == 'win32' or sys.platform == 'darwin':
+    path = '/Users/magdalenasolitro/Desktop/AI&CS MSc. UniUD/Small Project in CS/dataset_joey/'
+else:
+    path = '/media/usb/MIG/2.0 TB Volume/dataset_furious/'
 
 # retrieve significant trace window around the first timepoint
 time_points = np.load(path + 'timepoints/' + opt.target_op + '.npy')
@@ -81,9 +83,8 @@ print("Done!")
 # ------------
 print("Creating the training set...")
 
-# Compute number of total traces and the number of samples
+# Compute number of total traces
 n_data = trimmed_traces.shape[0]
-n_samples = trimmed_traces[1]
 
 labels_dict = dict()            # dictionary that associates
 idx = np.arange(n_data)         # list of indexes for the dataset
@@ -148,7 +149,7 @@ class Generator(nn.Module):
             nn.LeakyReLU(),
 
             nn.AvgPool1d(1, stride=10),
-            nn.ConvTranspose1d(50, 10, (5,), bias=False),
+            nn.ConvTranspose1d(50, 20, (5,), bias=False),
 
             nn.Flatten(),
             Reshape((50, 1, -1)),
@@ -173,25 +174,29 @@ class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
 
-        self.label_emb = nn.Embedding(opt.n_classes, opt.n_classes)
+        self.label_embedding = nn.Sequential(
+            nn.Embedding(opt.n_classes, 8),
+            nn.Linear(8, 1000),
+            Reshape((50, 1, -1))
+        )
 
         self.model = nn.Sequential(
-            nn.Conv1d(1, 32, (5,), stride=(2,), padding='same', bias=False),
+            nn.Conv1d(1, 32, (5,), stride=(2,), bias=False),
             nn.BatchNorm1d(32),
             nn.LeakyReLU(),
 
-            nn.Conv1d(32, 64, (5,), stride=(2,), padding='same', bias=False),
+            nn.Conv1d(32, 64, (5,), stride=(2,), bias=False),
             nn.BatchNorm1d(64),
             nn.LeakyReLU(),
 
-            nn.Conv1d(64, 128, (5,), stride=(2,), padding='same', bias=False),
+            nn.Conv1d(64, 128, (5,), stride=(2,), bias=False),
             nn.BatchNorm1d(128),
             nn.LeakyReLU(),
 
             nn.AvgPool1d(2, stride=2),
             nn.Flatten(),
 
-            nn.Linear(6272, 50),
+            nn.Linear(16768, 50),
             nn.ReLU(),
             nn.Linear(50, 1),
             nn.Sigmoid()
@@ -199,10 +204,9 @@ class Discriminator(nn.Module):
 
     def forward(self, trace, labels):
         # Concatenate label embedding and trace to produce input
-        embedded = self.label_emb(labels)
-        embedded = embedded.view(50, 1, -1)
+        label_emb = self.label_embedding(labels)
 
-        d_in = torch.cat((trace, embedded), -1)
+        d_in = torch.cat((trace, label_emb), -1)
         classify = self.model(d_in)
 
         return classify
@@ -323,9 +327,8 @@ for epoch in range(opt.n_epochs):
         # if batches_done % opt.sample_interval == 0:
         #     save_trace(gen_trs, labels, batches_done=batches_done)
 
-
         # Plot the loss
-        if sys.platform == 'win32' :
+        if sys.platform == 'win32' or sys.platform == 'darwin':
             if epoch == opt.n_epochs-1 and i == opt.batch_size-1:
                 x = np.arange(0, opt.n_epochs)
 
