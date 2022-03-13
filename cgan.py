@@ -233,27 +233,6 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if cuda else torch.LongTensor
 
-'''
-def save_trace(trs, labels, batches_done):
-    """Saves a grid of generated digits ranging from 0 to n_classes"""
-    # Create a file to store the generated traces
-    filename1 = 'generated traces/gen_trace_' + str(batches_done) + '.npy'
-
-    if filename1 in os.listdir('./generated traces/'):    # check existence of another file with identical name
-        os.remove(filename1)                # if that's the case, remove file
-
-    with open(filename1, 'x'):
-        np.save(filename1, trs.detach())
-
-    # Create a file for the labels
-    filename2 = 'generated traces/labels_' + str(batches_done) + '.npy'
-
-    if filename2 in os.listdir('./generated traces/'):
-        os.remove(filename2)
-
-    with open(filename2, 'x'):
-        np.save(filename2, labels)
-'''
 
 # ----------
 #  Training
@@ -322,10 +301,6 @@ for epoch in range(opt.n_epochs):
 
         d_loss.backward()
         optimizer_D.step()
-
-        # batches_done = epoch * len(dataloader) + i
-        # if batches_done % opt.sample_interval == 0:
-        #     save_trace(gen_trs, labels, batches_done=batches_done)
 
         # Plot the loss
         if sys.platform == 'win32' or sys.platform == 'darwin':
