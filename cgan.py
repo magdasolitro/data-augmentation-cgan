@@ -4,6 +4,7 @@ import os
 import numpy as np
 
 import sys
+
 if sys.platform == 'win32' or sys.platform == 'darwin':
     import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
@@ -13,7 +14,6 @@ import torch
 from tracedataset.TraceDataset import TraceDataset
 
 os.makedirs("generated traces", exist_ok=True)
-
 
 # hyperparameters
 parser = argparse.ArgumentParser()
@@ -35,7 +35,6 @@ print(opt)
 trace_shape = (1, 2 * opt.wnd_size)
 
 cuda = True if torch.cuda.is_available() else False
-
 
 # ----------------
 # Load the dataset
@@ -86,8 +85,8 @@ print("Creating the training set...")
 # Compute number of total traces
 n_data = trimmed_traces.shape[0]
 
-labels_dict = dict()            # dictionary that associates
-idx = np.arange(n_data)         # list of indexes for the dataset
+labels_dict = dict()  # dictionary that associates
+idx = np.arange(n_data)  # list of indexes for the dataset
 
 # Load the labels
 labels = np.load(path + 'realvalues/' + opt.target_op + '.npy')
@@ -131,7 +130,7 @@ class Generator(nn.Module):
 
         self.model = nn.Sequential(
             nn.Linear(opt.n_classes + opt.latent_dim, 500),
-            Reshape((50, 1, 500)),      # (batch size, n_channels, signal_length)
+            Reshape((50, 1, 500)),  # (batch size, n_channels, signal_length)
             nn.ConvTranspose1d(1, 500, (5,), bias=False),
             nn.BatchNorm1d(500),
             nn.LeakyReLU(),
@@ -174,39 +173,21 @@ class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
 
-        self.label_embedding = nn.Sequential(
-            nn.Embedding(opt.n_classes, 8),
-            nn.Linear(8, 1000),
-            Reshape((50, 1, -1))
-        )
+        self.label_emb = nn.Embedding(opt.n_classes, opt.n_classes)
 
         self.model = nn.Sequential(
             nn.Conv1d(1, 32, (5,), stride=(2,), bias=False),
-            nn.BatchNorm1d(32),
-            nn.LeakyReLU(),
-
-            nn.Conv1d(32, 64, (5,), stride=(2,), bias=False),
-            nn.BatchNorm1d(64),
-            nn.LeakyReLU(),
-
-            nn.Conv1d(64, 128, (5,), stride=(2,), bias=False),
-            nn.BatchNorm1d(128),
-            nn.LeakyReLU(),
-
-            nn.AvgPool1d(2, stride=2),
             nn.Flatten(),
-
-            nn.Linear(16768, 50),
-            nn.ReLU(),
-            nn.Linear(50, 1),
+            nn.Linear(21952, 1),
             nn.Sigmoid()
         )
 
     def forward(self, trace, labels):
         # Concatenate label embedding and trace to produce input
-        label_emb = self.label_embedding(labels)
+        labels = self.label_emb(labels)
+        labels = labels.view(50, 1, -1)
 
-        d_in = torch.cat((trace, label_emb), -1)
+        d_in = torch.cat((trace, labels), -1)
         classify = self.model(d_in)
 
         return classify
@@ -220,11 +201,10 @@ generator = Generator()
 discriminator = Discriminator()
 
 if cuda:
-    device = torch.device("cuda") 
+    device = torch.device("cuda")
     generator.to(device)
     discriminator.to(device)
     adversarial_loss.to(device)
-    
 
 # Optimizers
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
@@ -232,7 +212,6 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 
 FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if cuda else torch.LongTensor
-
 
 # ----------
 #  Training
@@ -249,7 +228,7 @@ for epoch in range(opt.n_epochs):
         fake = FloatTensor(opt.batch_size, 1).fill_(0.0)
 
         # Configure the input
-        real_trs = real_trs.type(LongTensor)    # cast real_trs to LongTensor
+        real_trs = real_trs.type(LongTensor)  # cast real_trs to LongTensor
         labels = labels.type(LongTensor)
 
         # -----------------
@@ -274,7 +253,6 @@ for epoch in range(opt.n_epochs):
         g_loss.backward()
         optimizer_G.step()
 
-
         # ---------------------
         #  Train Discriminator
         # ---------------------
@@ -283,11 +261,11 @@ for epoch in range(opt.n_epochs):
 
         # Loss for real traces
         real_trs = real_trs.view((50, 1, 2 * opt.wnd_size))
-        validity_real = discriminator(real_trs, labels)            # prob.trace is real and is compatible with the label
+        validity_real = discriminator(real_trs, labels)  # prob.trace is real and is compatible with the label
         d_real_loss = adversarial_loss(validity_real, valid)
 
         # Loss for fake traces
-        validity_fake = discriminator(gen_trs.detach(), gen_labels)   # prob. trace is fake and is compatible with label
+        validity_fake = discriminator(gen_trs.detach(), gen_labels)  # prob. trace is fake and is compatible with label
         d_fake_loss = adversarial_loss(validity_fake, fake)
 
         # Total discriminator loss
@@ -304,7 +282,7 @@ for epoch in range(opt.n_epochs):
 
         # Plot the loss
         if sys.platform == 'win32' or sys.platform == 'darwin':
-            if epoch == opt.n_epochs-1 and i == opt.batch_size-1:
+            if epoch == opt.n_epochs - 1 and i == opt.batch_size - 1:
                 x = np.arange(0, opt.n_epochs)
 
                 plot_gen = plt.figure(1)
@@ -328,4 +306,3 @@ for epoch in range(opt.n_epochs):
 
 np.save('Loss_gen', y_g)
 np.save('Loss_disc', y_d)
-
