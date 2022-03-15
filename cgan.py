@@ -151,7 +151,7 @@ def load_furious_traces(n,timepoint,window):
     for i in range(20):
         file = TRACES_FOLDER_FURIOUS + ('random_keys_traces_{}'.format(i) ) + '.npy' 
         print('Loading {}'.format(file))
-        traces_full = np.load(file,allow_pickle= True)[timepoint -window//2 : timepoint + window // 2]
+        traces_full = np.load(file,allow_pickle= True)[:,timepoint -window//2 : timepoint + window // 2]
             
         if traces is None:
             traces = traces_full
