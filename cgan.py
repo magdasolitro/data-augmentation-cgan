@@ -158,17 +158,48 @@ def load_furious_traces(n,timepoint,window):
         else:                
             traces = np.append(traces,traces_full,axis = 0)   
         if len(traces) > n:
-            return traces[:n]
-    return traces
+            return reshaped_gan(traces[:n])
+    return reshaped_gan(traces)
 
+def normalise_neural_trace(v):
+    # Shift up
+    return v - np.min(v)
 
-def load_dataset_gan(n_traces =  190000,variable = None,training=True,window = 2000):
-    values = np.load(REALVALUES_FOLDER_FURIOUS + 's'  + '.npy')[VARIABLE_LIST['s1'].index(variable)]     
+def normalise_neural_trace_single(v):
+    return divide_rows_by_max(normalise_neural_trace(v))
+
+def divide_rows_by_max(X):
+    if len(X.shape) == 1:
+        return X.astype(np.float32) / np.max(X)
+    else:
+        return X.astype(np.float32) / np.max(X, axis=1)[:, None]
+def normalise_neural_traces(X):
+    if X.shape[0] > 200000:
+        # Memory error: do sequentially
+        out = np.empty(X.shape)
+        for i in range(X.shape[0]):
+            out[i] = normalise_neural_trace_single(X[i])
+        return out
+    else:
+
+        # DEBUG
+        minimum_value_zero = np.apply_along_axis(normalise_neural_trace, 1, X)
+        divided_by_max = divide_rows_by_max(minimum_value_zero)
+        return divided_by_max
+
+def reshaped_gan(dataset):
+    normalised_traces  = normalise_neural_traces(dataset)
+    
+    return normalised_traces.reshape((normalised_traces.shape[0],50,20))
+
+def load_dataset_gan(n_traces =  190000,variable = None,training=True,window = 1000):
+    values = np.load(REALVALUES_FOLDER_FURIOUS + 's'  + '.npy')[:,VARIABLE_LIST['s1'].index(variable)]     
     timepoint = np.load(TIMEPOINTS_FOLDER_FURIOUS + 's'   + '.npy')[VARIABLE_LIST['s1'].index(variable)]  
     traces = load_furious_traces(n_traces, timepoint, window)
+    
     idx = np.random.permutation(traces.shape[0])
     traces = traces[idx]
-    real_values = values[idx,VARIABLE_LIST['s1'].index(variable)]
+    real_values = values[idx]
     return traces,real_values
 
 
