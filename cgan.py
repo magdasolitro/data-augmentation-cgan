@@ -188,11 +188,12 @@ def normalise_neural_traces(X):
         return divided_by_max
 
 def reshaped_gan(dataset):
+    print(dataset.shape)
     normalised_traces  = normalise_neural_traces(dataset)
     
     return normalised_traces.reshape((normalised_traces.shape[0],50,20))
 
-def load_dataset_gan(n_traces =  190000,variable = None,training=True,window = 1000):
+def load_dataset_gan(n_traces =  200000,variable = None,training=True,window = 1000):
     values = np.load(REALVALUES_FOLDER_FURIOUS + 's'  + '.npy')[:,VARIABLE_LIST['s1'].index(variable)]     
     timepoint = np.load(TIMEPOINTS_FOLDER_FURIOUS + 's'   + '.npy')[VARIABLE_LIST['s1'].index(variable)]  
     traces = load_furious_traces(n_traces, timepoint, window)
