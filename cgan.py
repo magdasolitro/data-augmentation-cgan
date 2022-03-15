@@ -194,7 +194,7 @@ def reshaped_gan(dataset):
     return normalised_traces.reshape((normalised_traces.shape[0],50,20))
 
 def load_dataset_gan(n_traces =  200000,variable = None,training=True,window = 1000):
-    values = np.load(REALVALUES_FOLDER_FURIOUS + 's'  + '.npy')[:,VARIABLE_LIST['s1'].index(variable)]     
+    values = np.load(REALVALUES_FOLDER_FURIOUS + 's'  + '.npy')[VARIABLE_LIST['s1'].index(variable),:]     
     timepoint = np.load(TIMEPOINTS_FOLDER_FURIOUS + 's'   + '.npy')[VARIABLE_LIST['s1'].index(variable)]  
     traces = load_furious_traces(n_traces, timepoint, window)
     
