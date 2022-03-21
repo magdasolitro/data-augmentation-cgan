@@ -33,8 +33,6 @@ parser.add_argument("--sample_interval", type=int, default=400, help="interval b
 opt = parser.parse_args()
 print(opt)
 
-trace_shape = (1, 2 * opt.wnd_size)
-
 cuda = True if torch.cuda.is_available() else False
 
 # ----------------
@@ -243,7 +241,7 @@ for epoch in range(opt.n_epochs):
         valid = FloatTensor(opt.batch_size, 1).fill_(1.0)
         fake = FloatTensor(opt.batch_size, 1).fill_(0.0)
 
-        real_trs = real_trs.view((opt.batch_size, 1, 2 * opt.wnd_size))
+        real_trs = real_trs.view((opt.batch_size, 1, -1))
 
         # Generate fake traces
         z = FloatTensor(np.random.normal(0, 1, (opt.batch_size, opt.latent_dim)))
