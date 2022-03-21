@@ -7,6 +7,7 @@ import sys
 
 if sys.platform == 'win32' or sys.platform == 'darwin':
     import matplotlib.pyplot as plt
+
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch
@@ -18,7 +19,7 @@ os.makedirs("generated traces", exist_ok=True)
 # hyperparameters
 parser = argparse.ArgumentParser()
 parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
-parser.add_argument("--batch_size", type=int, default=50, help="size of the batches")
+parser.add_argument("--batch_size", type=int, default=64, help="size of the batches")
 parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
@@ -108,6 +109,7 @@ dataloader = torch.utils.data.DataLoader(
 )
 
 
+# Reshape wrapper
 class Reshape(nn.Module):
     def __init__(self, shape):
         super(Reshape, self).__init__()
@@ -115,6 +117,12 @@ class Reshape(nn.Module):
 
     def forward(self, x):
         return x.view(self.shape)
+
+
+# Random initialization of weights
+def weights_init_normal(m):
+    if isinstance(m, nn.Linear) or isinstance(m, nn.Conv1d) or isinstance(m, nn.ConvTranspose1d):
+        torch.nn.init.normal_(m.weight)
 
 
 # ----------
@@ -130,7 +138,7 @@ class Generator(nn.Module):
 
         self.model = nn.Sequential(
             nn.Linear(opt.n_classes + opt.latent_dim, 500),
-            Reshape((50, 1, 500)),  # (batch size, n_channels, signal_length)
+            Reshape((opt.batch_size, 1, 500)),  # (batch size, n_channels, signal_length)
             nn.ConvTranspose1d(1, 500, (5,), bias=False),
             nn.BatchNorm1d(500),
             nn.LeakyReLU(),
@@ -151,7 +159,7 @@ class Generator(nn.Module):
             nn.ConvTranspose1d(50, 20, (5,), bias=False),
 
             nn.Flatten(),
-            Reshape((50, 1, -1)),
+            Reshape((opt.batch_size, 1, -1)),
             nn.Sigmoid()
         )
 
@@ -185,7 +193,7 @@ class Discriminator(nn.Module):
     def forward(self, trace, labels):
         # Concatenate label embedding and trace to produce input
         labels = self.label_emb(labels)
-        labels = labels.view(50, 1, -1)
+        labels = labels.view(opt.batch_size, 1, -1)
 
         d_in = torch.cat((trace, labels), -1)
         classify = self.model(d_in)
@@ -200,11 +208,17 @@ adversarial_loss = torch.nn.MSELoss()
 generator = Generator()
 discriminator = Discriminator()
 
+# Initialize weights
+generator.apply(weights_init_normal)
+discriminator.apply(weights_init_normal)
+
 if cuda:
     device = torch.device("cuda")
     generator.to(device)
     discriminator.to(device)
     adversarial_loss.to(device)
+else:
+    device = torch.device("cpu")
 
 # Optimizers
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
@@ -218,70 +232,58 @@ LongTensor = torch.cuda.LongTensor if cuda else torch.LongTensor
 # ----------
 
 # Keep track of the loss
-y_g = np.zeros(opt.n_epochs)
-y_d = np.zeros(opt.n_epochs)
+d_loss_list, g_loss_list = [], []
 
 for epoch in range(opt.n_epochs):
     for i, (real_trs, labels) in enumerate(dataloader):
-        # Adversarial ground truths
+        real_trs = real_trs.type(LongTensor)
+        labels = labels.type(LongTensor)
+
+        # Ground truths
         valid = FloatTensor(opt.batch_size, 1).fill_(1.0)
         fake = FloatTensor(opt.batch_size, 1).fill_(0.0)
 
-        # Configure the input
-        real_trs = real_trs.type(LongTensor)  # cast real_trs to LongTensor
-        labels = labels.type(LongTensor)
+        real_trs = real_trs.view((opt.batch_size, 1, 2 * opt.wnd_size))
 
-        # -----------------
-        #  Train Generator
-        # -----------------
-
-        optimizer_G.zero_grad()
-
-        # Sample noise
+        # Generate fake traces
         z = FloatTensor(np.random.normal(0, 1, (opt.batch_size, opt.latent_dim)))
+        gen_trs = generator(z, labels)
 
-        # Sample labels
-        gen_labels = LongTensor(np.random.randint(0, opt.n_classes, opt.batch_size))
-
-        # Generate a batch of traces
-        gen_trs = generator(z, gen_labels)
-
-        # Measure generator's ability to fool the discriminator
-        validity = discriminator(gen_trs, gen_labels)
-        g_loss = adversarial_loss(validity, valid)
-
-        g_loss.backward()
-        optimizer_G.step()
-
-        # ---------------------
-        #  Train Discriminator
-        # ---------------------
+        # -------------------
+        # Train Discriminator
+        # -------------------
 
         optimizer_D.zero_grad()
 
-        # Loss for real traces
-        real_trs = real_trs.view((50, 1, 2 * opt.wnd_size))
-        validity_real = discriminator(real_trs, labels)  # prob.trace is real and is compatible with the label
-        d_real_loss = adversarial_loss(validity_real, valid)
+        # Evaluate real traces
+        classify_real = discriminator(real_trs, labels)
+        d_real_loss = adversarial_loss(classify_real, valid)
 
-        # Loss for fake traces
-        validity_fake = discriminator(gen_trs.detach(), gen_labels)  # prob. trace is fake and is compatible with label
-        d_fake_loss = adversarial_loss(validity_fake, fake)
+        # Evaluate generated traces
+        classify_fake = discriminator(gen_trs.detach(), labels)
+        d_fake_loss = adversarial_loss(classify_fake, fake)
 
-        # Total discriminator loss
+        # Compute total loss
         d_loss = (d_real_loss + d_fake_loss) / 2
-
-        # Update Generator's loss value
-        y_g[epoch] = g_loss.item()
-
-        # Update Discriminator's loss value
-        y_d[epoch] = d_loss.item()
+        d_loss_list.append(d_loss)
 
         d_loss.backward()
         optimizer_D.step()
 
+        # ---------------
+        # Train Generator
+        # ---------------
+
+        optimizer_G.zero_grad()
+
+        g_loss = adversarial_loss(discriminator(gen_trs, labels), valid)
+        g_loss_list.append(g_loss)
+
+        g_loss.backward()
+        optimizer_G.step()
+
         # Plot the loss
-        if sys.platform == 'win32' or sys.platform == 'darwin':
+        if sys.platform == "win32" or sys.platform == "darwin":
             if epoch == opt.n_epochs - 1 and i == opt.batch_size - 1:
                 x = np.arange(0, opt.n_epochs)
 
@@ -289,20 +291,20 @@ for epoch in range(opt.n_epochs):
                 plt.title("Generator's loss")
                 plt.xlabel("Epoch")
                 plt.ylabel("Loss")
-                plt.plot(x, y_g)
+                plt.plot(x, g_loss_list)
 
                 plot_disc = plt.figure(2)
                 plt.title("Discriminator's loss")
                 plt.xlabel("Epoch")
                 plt.ylabel("Loss")
-                plt.plot(x, y_d)
+                plt.plot(x, d_loss_list)
 
                 plt.show()
 
         print(
-            "[Epoch %d/%d]  [D loss: %f] [G loss: %f]"
-            % (epoch, opt.n_epochs, d_loss.item(), g_loss.item())
+            "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
+            % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
         )
 
-np.save('Loss_gen', y_g)
-np.save('Loss_disc', y_d)
+np.save('Loss_gen', g_loss_list)
+np.save('Loss_disc', d_loss_list)
