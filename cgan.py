@@ -28,7 +28,6 @@ parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality 
 parser.add_argument("--n_classes", type=int, default=256, help="number of classes for dataset")
 parser.add_argument("--target_op", type=str, default='s', help="the intermediate result we want to attack")
 parser.add_argument("--wnd_size", type=int, default=560, help="window size around a time point")
-parser.add_argument("--sample_interval", type=int, default=400, help="interval between trace sampling")
 
 opt = parser.parse_args()
 print(opt)
