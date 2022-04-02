@@ -12,7 +12,7 @@ wnd_size = 500      # window size around a time point
 
 def generator(n_classes=n_classes, embedding_dim=latent_dim):
     noise = layers.Input(shape = (100,))
-    reshaped = layers.Reshape((1,100))(noise)
+    reshaped = layers.Reshape((1, 100))(noise)
 
     label = layers.Input(shape=(1,))
     embedded = layers.Embedding(n_classes, embedding_dim)(label)
@@ -31,6 +31,8 @@ def generator(n_classes=n_classes, embedding_dim=latent_dim):
     x = layers.LeakyReLU()(x)
     x = layers.BatchNormalization()(x)
 
+    x = layers.Reshape((500, 1))(x)
+
     output = layers.Conv1D(filters=20, kernel_size=5, padding='same', use_bias=False)(x)
 
     model = Model(inputs = [noise, label], outputs = [output])
@@ -38,13 +40,15 @@ def generator(n_classes=n_classes, embedding_dim=latent_dim):
     return model
 
 
-def discriminator(n_classes=n_classes, latent_dim=8):
-    trace = layers.Input(shape=(1,500))     # TO BE OPTIONALLY MODIFIED
+def discriminator(n_classes=n_classes, embedding_dim=8):
+    trace = layers.Input(shape=(500, 20))
     label = layers.Input(shape=(1,))
 
-    embedded_label = layers.Embedding(n_classes, latent_dim)(label)
+    embedded = layers.Embedding(n_classes, embedding_dim)(label)
+    dense = layers.Dense(10000)(embedded)
+    reshaped = layers.Reshape((500, 20))(dense)
 
-    input = layers.Concatenate()([trace, embedded_label])
+    input = layers.Concatenate()([trace, reshaped])
 
     x = layers.Dense(512)(input)
     x = layers.LeakyReLU(0.2)(x)

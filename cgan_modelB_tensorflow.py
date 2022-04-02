@@ -42,9 +42,11 @@ def discriminator(n_classes=n_classes, latent_dim=8):
     trace = layers.Input(shape=(50,20))     # to be optionally modified
     label = layers.Input(shape=(1,))
 
-    embedded_label = layers.Embedding(n_classes, latent_dim)(label)
+    embedded = layers.Embedding(n_classes, latent_dim)(label)
+    dense = layers.Dense(10000)(embedded)
+    reshaped = layers.Reshape((500, 20))(dense)
 
-    input = layers.Concatenate()([trace, embedded_label])
+    input = layers.Concatenate()([trace, embedded])
 
     x = layers.Dense(512)(input)
     x = layers.LeakyReLU(0.2)(x)
