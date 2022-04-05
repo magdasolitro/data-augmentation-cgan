@@ -96,7 +96,7 @@ def make_discriminator_model(n_classes=256, embedding_dim=8):
 
     output = layers.Dense(1, activation='sigmoid')(x)
 
-    model = Model(inputs = [trace, label], output = [output])
+    model = Model(inputs=[trace, label], output=[output])
 
     return model
 
