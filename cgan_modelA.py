@@ -19,9 +19,11 @@ from tensorflow.keras import backend as K
 # Batch and shuffle the data
 
 
-DATASET_FOLDER_FURIOUS = 'D:/dataset_joey/' if sys.platform == 'win32' else '/media/usb/MIG/2.0 TB Volume/dataset_furious/'
+DATASET_FOLDER_FURIOUS = 'D:/dataset_joey/' if sys.platform == 'win32' else '/home/solitroma/Desktop/small project/dataset_joey/'
+#DATASET_FOLDER_FURIOUS = '/home/solitroma/Desktop/small project/dataset_joey/'
 
-PROJECT_FOLDER = 'C:/Users/martho/Documents/data-augmentation-cgan/' if sys.platform == 'win32' else '/root/Projets/data-augmentation-cgan/'
+PROJECT_FOLDER = 'C:/Users/martho/Documents/data-augmentation-cgan/' if sys.platform == 'win32' else '/home/solitroma/Desktop/small project/data-augmentation-cgan/'
+#PROJECT_FOLDER = '/home/solitroma/Desktop/small project/data-augmentation-cgan/'
 METRICS_FOLDER = PROJECT_FOLDER + 'metrics/'
 MODEL_FOLDER = PROJECT_FOLDER + 'models/'
 
@@ -96,7 +98,7 @@ def make_discriminator_model(n_classes=256, embedding_dim=8):
 
     output = layers.Dense(1, activation='sigmoid')(x)
 
-    model = Model(inputs=[trace, label], output=[output])
+    model = Model(inputs=[trace, label], outputs=[output])
 
     return model
 
