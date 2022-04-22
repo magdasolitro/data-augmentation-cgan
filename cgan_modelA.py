@@ -19,10 +19,10 @@ from tensorflow.keras import backend as K
 # Batch and shuffle the data
 
 
-DATASET_FOLDER_FURIOUS = 'D:/dataset_joey/' if sys.platform == 'win32' else '/home/solitroma/Desktop/small project/dataset_joey/'
+DATASET_FOLDER_FURIOUS = 'D:/dataset_joey/' if sys.platform == 'win32' else '/srv/dataset_furious/'
 #DATASET_FOLDER_FURIOUS = '/home/solitroma/Desktop/small project/dataset_joey/'
 
-PROJECT_FOLDER = 'C:/Users/martho/Documents/data-augmentation-cgan/' if sys.platform == 'win32' else '/home/solitroma/Desktop/small project/data-augmentation-cgan/'
+PROJECT_FOLDER = 'C:/Users/martho/Documents/data-augmentation-cgan/' if sys.platform == 'win32' else '/home/martho/Projets/data-augmentation-cgan/'
 #PROJECT_FOLDER = '/home/solitroma/Desktop/small project/data-augmentation-cgan/'
 METRICS_FOLDER = PROJECT_FOLDER + 'metrics/'
 MODEL_FOLDER = PROJECT_FOLDER + 'models/'
