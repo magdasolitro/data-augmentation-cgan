@@ -230,6 +230,7 @@ def train(dataset, epochs, dataset_size, var):
             epoch_f_loss += f_loss
             epoch_r_loss += r_loss
             epoch_f_acc += f_accuracy
+            print(f_accuracy)
             epoch_r_acc += r_accuracy
         epoch_d_loss /= (dataset_size / 100)
         epoch_g_loss /= (dataset_size / 100)
