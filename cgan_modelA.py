@@ -18,12 +18,16 @@ from tensorflow.keras import backend as K
 
 # Batch and shuffle the data
 
+if sys.platform == 'win32':
+    DATASET_FOLDER_FURIOUS = 'D:/dataset_joey/'
+else:
+    DATASET_FOLDER_FURIOUS = '/home/solitroma/Desktop/small project/dataset_joey/'
 
-DATASET_FOLDER_FURIOUS = 'D:/dataset_joey/' if sys.platform == 'win32' else '/home/solitroma/Desktop/small project/dataset_joey/'
-#DATASET_FOLDER_FURIOUS = '/home/solitroma/Desktop/small project/dataset_joey/'
+if sys.platform == 'win32':
+    PROJECT_FOLDER = 'C:/Users/martho/Documents/data-augmentation-cgan/'
+else:
+    PROJECT_FOLDER = '/home/solitroma/Desktop/small project/data-augmentation-cgan/'
 
-PROJECT_FOLDER = 'C:/Users/martho/Documents/data-augmentation-cgan/' if sys.platform == 'win32' else '/home/solitroma/Desktop/small project/data-augmentation-cgan/'
-#PROJECT_FOLDER = '/home/solitroma/Desktop/small project/data-augmentation-cgan/'
 METRICS_FOLDER = PROJECT_FOLDER + 'metrics/'
 MODEL_FOLDER = PROJECT_FOLDER + 'models/'
 
@@ -256,7 +260,7 @@ def train(dataset, epochs, dataset_size, var):
                 MODEL_FOLDER + '{}_gan_discriminator_{}.h5'.format(var if not var is None else 'all', epoch + 1))
             best = abs(epoch_r_acc - 50) + abs(epoch_f_acc - 50)
             if best < 1:
-                print('Early break ! ')
+                print('Early break!')
                 return loss_real_dict, loss_fake_dict, loss_gen_dict, acc_real_dict, acc_fake_dict
     return loss_real_dict, loss_fake_dict, loss_gen_dict, acc_real_dict, acc_fake_dict
 
