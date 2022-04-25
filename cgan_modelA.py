@@ -85,14 +85,15 @@ def make_discriminator_model(n_classes=256, embedding_dim=8):
 
     input = layers.Concatenate()([trace, reshaped])
 
-    x = layers.Dense(512)(input)
-    x = layers.LeakyReLU(0.2)(x)
-
-    x = layers.Dense(512)(x)
+    x = layers.Dense(256)(input)
     x = layers.LeakyReLU()(x)
     x = layers.Dropout(0.2)(x)
 
-    x = layers.Dense(512)(x)
+    x = layers.Dense(128)(x)
+    x = layers.LeakyReLU()(x)
+    x = layers.Dropout(0.2)(x)
+
+    x = layers.Dense(64)(x)
     x = layers.LeakyReLU()(x)
     x = layers.Dropout(0.2)(x)
 
