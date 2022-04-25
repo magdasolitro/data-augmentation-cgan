@@ -23,10 +23,11 @@ if sys.platform == 'win32':
 else:
     DATASET_FOLDER_FURIOUS = '/home/solitroma/Desktop/small project/dataset_joey/'
 
-if sys.platform == 'win32':
-    PROJECT_FOLDER = 'C:/Users/martho/Documents/data-augmentation-cgan/'
-else:
-    PROJECT_FOLDER = '/home/solitroma/Desktop/small project/data-augmentation-cgan/'
+DATASET_FOLDER_FURIOUS = 'D:/dataset_joey/' if sys.platform == 'win32' else '/srv/dataset_furious/'
+#DATASET_FOLDER_FURIOUS = '/home/solitroma/Desktop/small project/dataset_joey/'
+
+PROJECT_FOLDER = 'C:/Users/martho/Documents/data-augmentation-cgan/' if sys.platform == 'win32' else '/home/martho/Projets/data-augmentation-cgan/'
+#PROJECT_FOLDER = '/home/solitroma/Desktop/small project/data-augmentation-cgan/'
 
 METRICS_FOLDER = PROJECT_FOLDER + 'metrics/'
 MODEL_FOLDER = PROJECT_FOLDER + 'models/'
@@ -89,14 +90,15 @@ def make_discriminator_model(n_classes=256, embedding_dim=8):
 
     input = layers.Concatenate()([trace, reshaped])
 
-    x = layers.Dense(512)(input)
-    x = layers.LeakyReLU(0.2)(x)
-
-    x = layers.Dense(512)(x)
+    x = layers.Dense(256)(input)
     x = layers.LeakyReLU()(x)
     x = layers.Dropout(0.2)(x)
 
-    x = layers.Dense(512)(x)
+    x = layers.Dense(128)(x)
+    x = layers.LeakyReLU()(x)
+    x = layers.Dropout(0.2)(x)
+
+    x = layers.Dense(64)(x)
     x = layers.LeakyReLU()(x)
     x = layers.Dropout(0.2)(x)
 
@@ -117,7 +119,7 @@ def discriminator_loss(real_output, fake_output):
 def discriminator_accuracy(real_output, fake_output):
     real_accuracy = tf.reduce_sum(tf.where(real_output >= 0.5, tf.ones_like(real_output), tf.zeros_like(real_output)))
     fake_accuracy = tf.reduce_sum(tf.where(fake_output >= 0.5, tf.zeros_like(fake_output), tf.ones_like(fake_output)))
-    return fake_accuracy, real_accuracy
+    return 2*fake_accuracy / (fake_output.shape[0]), 2*real_accuracy/ (real_output.shape[0])
 
 
 def generator_loss(fake_output):
@@ -211,7 +213,7 @@ def train_step(images, target):
     return disc_loss, gen_loss, fake_loss, real_loss, fake_accuracy, real_accuracy
 
 
-def train(dataset, epochs, dataset_size, var):
+def train(dataset, epochs, dataset_size, var,bs):
     loss_real_dict = {}
     loss_fake_dict = {}
     loss_gen_dict = {}
@@ -235,12 +237,12 @@ def train(dataset, epochs, dataset_size, var):
             epoch_r_loss += r_loss
             epoch_f_acc += f_accuracy
             epoch_r_acc += r_accuracy
-        epoch_d_loss /= (dataset_size / 100)
-        epoch_g_loss /= (dataset_size / 100)
-        epoch_f_loss /= (dataset_size / 100)
-        epoch_r_loss /= (dataset_size / 100)
-        epoch_f_acc /= (dataset_size / 100)
-        epoch_r_acc /= (dataset_size / 100)
+        epoch_d_loss /= (dataset_size / bs)
+        epoch_g_loss /= (dataset_size / bs)
+        epoch_f_loss /= (dataset_size / bs)
+        epoch_r_loss /= (dataset_size / bs)
+        epoch_f_acc /= (dataset_size / bs)
+        epoch_r_acc /= (dataset_size / bs)
         # Save the model every 15 epochs
         loss_real_dict[epoch] = epoch_r_loss
         loss_fake_dict[epoch] = epoch_f_loss
@@ -306,7 +308,7 @@ if __name__ == "__main__":
 
     train_dataset = tf.data.Dataset.from_tensor_slices((train_data, real_values)).shuffle(train_data.shape[0]).batch(
         BATCH_SIZE)
-    rl, fl, gl, ra, fa = train(train_dataset, EPOCHS, train_data.shape[0], VARIABLE)
+    rl, fl, gl, ra, fa = train(train_dataset, EPOCHS, train_data.shape[0], VARIABLE,BATCH_SIZE)
     metrics = pd.DataFrame.from_dict(rl, columns=['real_loss'], orient='index')
     metrics.insert(1, 'fake_loss', fl.values(), True)
     metrics.insert(1, 'fake_acc', fa.values(), True)
