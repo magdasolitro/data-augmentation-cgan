@@ -136,7 +136,7 @@ def discriminator_loss(real_output, fake_output):
 def discriminator_accuracy(real_output, fake_output):
     real_accuracy = tf.reduce_sum(tf.where(real_output >= 0.5, tf.ones_like(real_output), tf.zeros_like(real_output)))
     fake_accuracy = tf.reduce_sum(tf.where(fake_output >= 0.5, tf.zeros_like(fake_output), tf.ones_like(fake_output)))
-    return fake_accuracy , real_accuracy
+    return fake_accuracy/2 , real_accuracy/2
 
 
 def generator_loss(fake_output):
