@@ -118,9 +118,7 @@ def make_discriminator_model(n_classes = 256,embedding_dim = 8):
 
 
     x = layers.Flatten()(x)
-    x = layers.Dense(50, activation='relu')(x)
-    x = layers.Dense(100, activation='relu')(x)
-    x = layers.Dense(50, activation='relu')(x)
+
     output = layers.Dense(1, activation='sigmoid')(x)
     
     model = Model(inputs = [image_input,label_input],outputs = [output])
