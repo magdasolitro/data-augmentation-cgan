@@ -10,6 +10,7 @@ from tensorflow.keras import layers
 from tensorflow.keras.models import Model
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import argparse
 import time
 import sys
@@ -119,7 +120,7 @@ def discriminator_loss(real_output, fake_output):
 def discriminator_accuracy(real_output, fake_output):
     real_accuracy = tf.reduce_sum(tf.where(real_output >= 0.5, tf.ones_like(real_output), tf.zeros_like(real_output)))
     fake_accuracy = tf.reduce_sum(tf.where(fake_output >= 0.5, tf.zeros_like(fake_output), tf.ones_like(fake_output)))
-    return 2*fake_accuracy / (fake_output.shape[0]), 2*real_accuracy/ (real_output.shape[0])
+    return 2*fake_accuracy / (fake_output.shape[0]), 2*real_accuracy / (real_output.shape[0])
 
 
 def generator_loss(fake_output):
@@ -129,7 +130,7 @@ def generator_loss(fake_output):
 def load_furious_traces(n, timepoint, window):
     traces = None
 
-    for i in range(20):
+    for i in range(1):
         file = TRACES_FOLDER_FURIOUS + ('random_keys_traces_{}'.format(i)) + '.npy'
         print('Loading {}'.format(file))
         traces_full = np.load(file, allow_pickle=True)[:, timepoint - window // 2: timepoint + window // 2]
@@ -176,8 +177,9 @@ def normalise_neural_traces(X):
 def reshaped_gan(dataset):
     print(dataset.shape)
     normalised_traces = normalise_neural_traces(dataset)
+    reshaped_traces = normalised_traces.reshape((normalised_traces.shape[0], 50, 20))
 
-    return normalised_traces.reshape((normalised_traces.shape[0], 50, 20))
+    return reshaped_traces
 
 
 def load_dataset_gan(n_traces=200000, variable=None, training=True, window=1000):
@@ -188,6 +190,7 @@ def load_dataset_gan(n_traces=200000, variable=None, training=True, window=1000)
     idx = np.random.permutation(traces.shape[0])
     traces = traces[idx]
     real_values = values[idx]
+
     return traces, real_values
 
 
@@ -213,7 +216,22 @@ def train_step(images, target):
     return disc_loss, gen_loss, fake_loss, real_loss, fake_accuracy, real_accuracy
 
 
-def train(dataset, epochs, dataset_size, var,bs):
+def generate_image(model, n_classes=256):
+    # sample a label between 0 and 255
+    label = np.random.randint(0, n_classes-1)
+    noise = tf.random.normal([1, 100])
+
+    image = model([noise, label], training=False)
+    image = tf.reshape(image, (1000,))
+
+    plt.title("Generated power trace")
+    plt.ylabel("Power values")
+    image_plot = plt.plot(image)
+
+    return image_plot
+
+
+def train(dataset, epochs, dataset_size, var, bs):
     loss_real_dict = {}
     loss_fake_dict = {}
     loss_gen_dict = {}
