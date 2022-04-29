@@ -24,7 +24,7 @@ if __name__ == "__main__":
     label = np.random.randint(0, high  = n_classes - 1,size = N)
     noise = tf.random.normal([N, 100])
 
-    image = model([noise, label], training=False)
+    image = np.array(model([noise, label], training=False))
     image = image.reshape(-1,1000)
     np.save('images.npy',allow_pickle= True ) 
 
