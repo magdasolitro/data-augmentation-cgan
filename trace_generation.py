@@ -27,5 +27,6 @@ if __name__ == "__main__":
     image = np.array(model([noise, label], training=False))
     image = image.reshape(-1,1000)
     np.save('images.npy',image,allow_pickle= True ) 
+    np.save('labels.npy',label,allow_pickle= True)
 
 
