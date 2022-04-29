@@ -1,24 +1,31 @@
 import tensorflow as tf
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import load_model
 import numpy as np
-import matplotlib.pyplot as plt
+
 import argparse
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Plot Power Traces')
-    parser.add_argument('-m', action='store', type=Model, nargs=1, help='generated model', metavar='M', dest='MODEL')
 
-    args = parser.parse_args()
-    model = args.MODEL
+    parser = argparse.ArgumentParser(description='Test gans')
+
+    parser.add_argument('--SAVE', action="store_true", dest="SAVE",
+                        help='Save fids', default=False)
+    parser.add_argument('-n', action="store", dest="N", help='Number of real traces compared too',
+                        type=int, default=100)    
+    
+    args            = parser.parse_args()
+    N = args.N
+    SAVE = args.SAVE    
+
+    model = load_model('models' + 's003_gan_generator_661.h5')
+    
     n_classes = 256
-
-    label = np.random.randint(0, n_classes - 1)
-    noise = tf.random.normal([1, 100])
+    
+    label = np.random.randint(0, high  = n_classes - 1,N)
+    noise = tf.random.normal([N, 100])
 
     image = model([noise, label], training=False)
-    image = tf.reshape(image, (1000,))
+    image = image.reshape(-1,1000)
+    np.save('images.npy',allow_pickle= True ) 
 
-    plt.title("Generated power trace")
-    plt.ylabel("Power values")
-    plt.plot(image)
-    plt.show()
+
