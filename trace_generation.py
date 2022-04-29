@@ -17,7 +17,7 @@ if __name__ == "__main__":
     N = args.N
     SAVE = args.SAVE    
 
-    model = load_model('models' + 's003_gan_generator_661.h5')
+    model = load_model('models/' + 's003_gan_generator_661.h5')
     
     n_classes = 256
     
