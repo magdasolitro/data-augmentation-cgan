@@ -50,62 +50,77 @@ for intermediate in INTERMEDIATES:
               17 if int(intermediate[len(list(intermediate)) - 1]) == 1 else 33)]
 
 
-def make_generator_model(n_classes=256, embedding_dim=100):
-    noise = layers.Input(shape=(100,))
-    reshaped = layers.Reshape((1, 100))(noise)
+def make_generator_model(n_classes = 256,embedding_dim = 100):
+    
+    
+    noise_input = layers.Input(shape = (100,))
 
-    label = layers.Input(shape=(1,))
-    embedded = layers.Embedding(n_classes, embedding_dim)(label)
 
-    input = layers.Concatenate()([reshaped, embedded])
 
-    x = layers.Dense(250)(input)
-    x = layers.LeakyReLU()(x)
+    reshaped = layers.Reshape((1,100))(noise_input)
+    label_input = layers.Input(shape = (1,))
+    embedded = layers.Embedding(n_classes, embedding_dim)(label_input)
+
+    concat_input = layers.Concatenate()([reshaped, embedded])
+  
+    x = layers.Dense(500)(concat_input)
+    x = layers.Reshape((500,1))(x)
+    x = layers.Conv1DTranspose(500, 5, strides=1, padding='same', use_bias=False)(x)
     x = layers.BatchNormalization()(x)
-
-    x = layers.Dense(100)(x)
     x = layers.LeakyReLU()(x)
-    x = layers.BatchNormalization()(x)
 
-    x = layers.Dense(50)(x)
+    x = layers.Conv1DTranspose(250, 5, strides=1, padding='same', use_bias=False)(x)
+    x = layers.BatchNormalization()(x)
     x = layers.LeakyReLU()(x)
+
+    x = layers.Conv1DTranspose(100, 5, strides=1, padding='same', use_bias=False)(x)
     x = layers.BatchNormalization()(x)
+    x = layers.LeakyReLU()(x)
 
-    x = layers.Reshape((50, 1))(x)
+    x = layers.Conv1DTranspose(50, 5, strides=1, padding='same', use_bias=False)(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.LeakyReLU()(x)
+    x = layers.AveragePooling1D(1, strides=10)(x)
 
-    output = layers.Conv1D(filters=20, kernel_size=5, padding='same', use_bias=False)(x)
-
-    model = Model(inputs=[noise, label], outputs=[output])
-    # print(model.summary())
-
+    output = layers.Conv1DTranspose(20, 5, strides=1, padding='same', use_bias=False, activation='sigmoid')(x)
+ 
+    model = Model(inputs=[noise_input, label_input], outputs=[output])
+    model.summary()
     return model
 
 
 def make_discriminator_model(n_classes=256, embedding_dim=8):
-    trace = layers.Input(shape=(50, 20))
 
-    label = layers.Input(shape=(1,))
-    embedded = layers.Embedding(n_classes, embedding_dim)(label)
+    image_input = layers.Input(shape=(50,20))
+    label_input = layers.Input(shape=(1,))
+    embedded = layers.Embedding(n_classes, embedding_dim)(label_input)
     dense = layers.Dense(1000)(embedded)
     reshaped = layers.Reshape((50, 20))(dense)
+    concat_input = layers.Concatenate()([image_input, reshaped])
+    
 
-    input = layers.Concatenate()([trace, reshaped])
-
-    x = layers.Dense(256)(input)
+    x = layers.Conv1D(32, 5, strides=2, padding='same')(concat_input)
+    x = layers.Lambda(lambda x: K.l2_normalize(x,axis=1))(x)
+    x = layers.BatchNormalization()(x)
     x = layers.LeakyReLU()(x)
-    x = layers.Dropout(0.2)(x)
-
-    x = layers.Dense(128)(x)
+    
+    x = layers.Conv1D(64, 5, strides=2, padding='same')(x)
+    x = layers.Lambda(lambda x: K.l2_normalize(x,axis=1))(x)
+    x = layers.BatchNormalization()(x)
     x = layers.LeakyReLU()(x)
-    x = layers.Dropout(0.2)(x)
 
-    x = layers.Dense(64)(x)
+    x = layers.Conv1D(128, 5, strides=2, padding='same')(x)
+    x = layers.Lambda(lambda x: K.l2_normalize(x, axis=1))(x)
+    x = layers.BatchNormalization()(x)
     x = layers.LeakyReLU()(x)
-    x = layers.Dropout(0.2)(x)
+    x = layers.AveragePooling1D(2, strides=2)(x)
+
+
+    x = layers.Flatten()(x)
 
     output = layers.Dense(1, activation='sigmoid')(x)
-
-    model = Model(inputs=[trace, label], outputs=[output])
+    
+    model = Model(inputs=[image_input, label_input], outputs=[output])
 
     return model
 
@@ -120,7 +135,8 @@ def discriminator_loss(real_output, fake_output):
 def discriminator_accuracy(real_output, fake_output):
     real_accuracy = tf.reduce_sum(tf.where(real_output >= 0.5, tf.ones_like(real_output), tf.zeros_like(real_output)))
     fake_accuracy = tf.reduce_sum(tf.where(fake_output >= 0.5, tf.zeros_like(fake_output), tf.ones_like(fake_output)))
-    return 2*fake_accuracy / (fake_output.shape[0]), 2*real_accuracy / (real_output.shape[0])
+    return fake_accuracy/2 , real_accuracy/2
+
 
 
 def generator_loss(fake_output):
