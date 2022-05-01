@@ -50,21 +50,17 @@ for intermediate in INTERMEDIATES:
               17 if int(intermediate[len(list(intermediate)) - 1]) == 1 else 33)]
 
 
-def make_generator_model(n_classes = 256,embedding_dim = 100):
-    
-    
-    noise_input = layers.Input(shape = (100,))
+def make_generator_model(n_classes=256, embedding_dim=100):
+    noise_input = layers.Input(shape=(100,))
 
-
-
-    reshaped = layers.Reshape((1,100))(noise_input)
-    label_input = layers.Input(shape = (1,))
+    reshaped = layers.Reshape((1, 100))(noise_input)
+    label_input = layers.Input(shape=(1,))
     embedded = layers.Embedding(n_classes, embedding_dim)(label_input)
 
     concat_input = layers.Concatenate()([reshaped, embedded])
   
     x = layers.Dense(500)(concat_input)
-    x = layers.Reshape((500,1))(x)
+    x = layers.Reshape((500, 1))(x)
     x = layers.Conv1DTranspose(500, 5, strides=1, padding='same', use_bias=False)(x)
     x = layers.BatchNormalization()(x)
     x = layers.LeakyReLU()(x)
@@ -90,14 +86,12 @@ def make_generator_model(n_classes = 256,embedding_dim = 100):
 
 
 def make_discriminator_model(n_classes=256, embedding_dim=8):
-
-    image_input = layers.Input(shape=(50,20))
+    image_input = layers.Input(shape=(50, 20))
     label_input = layers.Input(shape=(1,))
     embedded = layers.Embedding(n_classes, embedding_dim)(label_input)
     dense = layers.Dense(1000)(embedded)
     reshaped = layers.Reshape((50, 20))(dense)
     concat_input = layers.Concatenate()([image_input, reshaped])
-    
 
     x = layers.Conv1D(32, 5, strides=2, padding='same')(concat_input)
     x = layers.Lambda(lambda x: K.l2_normalize(x,axis=1))(x)
@@ -105,7 +99,7 @@ def make_discriminator_model(n_classes=256, embedding_dim=8):
     x = layers.LeakyReLU()(x)
     
     x = layers.Conv1D(64, 5, strides=2, padding='same')(x)
-    x = layers.Lambda(lambda x: K.l2_normalize(x,axis=1))(x)
+    x = layers.Lambda(lambda x: K.l2_normalize(x, axis=1))(x)
     x = layers.BatchNormalization()(x)
     x = layers.LeakyReLU()(x)
 
@@ -114,7 +108,6 @@ def make_discriminator_model(n_classes=256, embedding_dim=8):
     x = layers.BatchNormalization()(x)
     x = layers.LeakyReLU()(x)
     x = layers.AveragePooling1D(2, strides=2)(x)
-
 
     x = layers.Flatten()(x)
 
@@ -146,7 +139,7 @@ def generator_loss(fake_output):
 def load_furious_traces(n, timepoint, window):
     traces = None
 
-    for i in range(1):
+    for i in range(19):
         file = TRACES_FOLDER_FURIOUS + ('random_keys_traces_{}'.format(i)) + '.npy'
         print('Loading {}'.format(file))
         traces_full = np.load(file, allow_pickle=True)[:, timepoint - window // 2: timepoint + window // 2]
@@ -198,7 +191,7 @@ def reshaped_gan(dataset):
     return reshaped_traces
 
 
-def load_dataset_gan(n_traces=200000, variable=None, training=True, window=1000):
+def load_dataset_gan(n_traces=200000, variable=None, window=1000):
     values = np.load(REALVALUES_FOLDER_FURIOUS + 's' + '.npy')[VARIABLE_LIST['s1'].index(variable), :]
     timepoint = np.load(TIMEPOINTS_FOLDER_FURIOUS + 's' + '.npy')[VARIABLE_LIST['s1'].index(variable)]
     traces = load_furious_traces(n_traces, timepoint, window)
