@@ -225,21 +225,6 @@ def train_step(images, target):
     return disc_loss, gen_loss, fake_loss, real_loss, fake_accuracy, real_accuracy
 
 
-def generate_image(model, n_classes=256):
-    # sample a label between 0 and 255
-    label = np.random.randint(0, n_classes-1)
-    noise = tf.random.normal([1, 100])
-
-    image = model([noise, label], training=False)
-    image = tf.reshape(image, (1000,))
-
-    plt.title("Generated power trace")
-    plt.ylabel("Power values")
-    image_plot = plt.plot(image)
-
-    return image_plot
-
-
 def train(dataset, epochs, dataset_size, var, bs):
     loss_real_dict = {}
     loss_fake_dict = {}
