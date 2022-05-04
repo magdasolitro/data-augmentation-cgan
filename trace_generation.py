@@ -13,7 +13,7 @@ if __name__ == "__main__":
     parser.add_argument('-n', action="store", dest="N", help='Number of real traces compared too',
                         type=int, default=100)    
     
-    args            = parser.parse_args()
+    args = parser.parse_args()
     N = args.N
     SAVE = args.SAVE    
 
@@ -32,7 +32,7 @@ if __name__ == "__main__":
         labels = label if labels is None else np.append(labels ,label ,axis =0)
     print(images.shape)
     print(labels.shape)
-    np.save('images.npy',images,allow_pickle= True ) 
-    np.save('labels.npy',labels,allow_pickle= True)
+    np.save('images.npy', images, allow_pickl=True)
+    np.save('labels.npy', labels, allow_pickle=True)
 
 

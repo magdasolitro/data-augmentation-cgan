@@ -50,21 +50,17 @@ for intermediate in INTERMEDIATES:
               17 if int(intermediate[len(list(intermediate)) - 1]) == 1 else 33)]
 
 
-def make_generator_model(n_classes = 256,embedding_dim = 100):
-    
-    
-    noise_input = layers.Input(shape = (100,))
+def make_generator_model(n_classes=256, embedding_dim=100):
+    noise_input = layers.Input(shape=(100,))
 
-
-
-    reshaped = layers.Reshape((1,100))(noise_input)
-    label_input = layers.Input(shape = (1,))
+    reshaped = layers.Reshape((1, 100))(noise_input)
+    label_input = layers.Input(shape=(1,))
     embedded = layers.Embedding(n_classes, embedding_dim)(label_input)
 
     concat_input = layers.Concatenate()([reshaped, embedded])
   
     x = layers.Dense(500)(concat_input)
-    x = layers.Reshape((500,1))(x)
+    x = layers.Reshape((500, 1))(x)
     x = layers.Conv1DTranspose(500, 5, strides=1, padding='same', use_bias=False)(x)
     x = layers.BatchNormalization()(x)
     x = layers.LeakyReLU()(x)
@@ -97,7 +93,6 @@ def make_discriminator_model(n_classes=256, embedding_dim=8):
     dense = layers.Dense(1000)(embedded)
     reshaped = layers.Reshape((50, 20))(dense)
     concat_input = layers.Concatenate()([image_input, reshaped])
-    
 
     x = layers.Conv1D(32, 5, strides=2, padding='same')(concat_input)
     x = layers.Lambda(lambda x: K.l2_normalize(x,axis=1))(x)
@@ -105,7 +100,7 @@ def make_discriminator_model(n_classes=256, embedding_dim=8):
     x = layers.LeakyReLU()(x)
     
     x = layers.Conv1D(64, 5, strides=2, padding='same')(x)
-    x = layers.Lambda(lambda x: K.l2_normalize(x,axis=1))(x)
+    x = layers.Lambda(lambda x: K.l2_normalize(x, axis=1))(x)
     x = layers.BatchNormalization()(x)
     x = layers.LeakyReLU()(x)
 
@@ -114,7 +109,6 @@ def make_discriminator_model(n_classes=256, embedding_dim=8):
     x = layers.BatchNormalization()(x)
     x = layers.LeakyReLU()(x)
     x = layers.AveragePooling1D(2, strides=2)(x)
-
 
     x = layers.Flatten()(x)
 
@@ -135,7 +129,7 @@ def discriminator_loss(real_output, fake_output):
 def discriminator_accuracy(real_output, fake_output):
     real_accuracy = tf.reduce_sum(tf.where(real_output >= 0.5, tf.ones_like(real_output), tf.zeros_like(real_output)))
     fake_accuracy = tf.reduce_sum(tf.where(fake_output >= 0.5, tf.zeros_like(fake_output), tf.ones_like(fake_output)))
-    return fake_accuracy/2 , real_accuracy/2
+    return fake_accuracy/2, real_accuracy/2
 
 
 
