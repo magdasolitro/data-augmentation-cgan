@@ -86,8 +86,7 @@ def make_generator_model(n_classes=256, embedding_dim=100):
 
 
 def make_discriminator_model(n_classes=256, embedding_dim=8):
-
-    image_input = layers.Input(shape=(50,20))
+    image_input = layers.Input(shape=(50, 20))
     label_input = layers.Input(shape=(1,))
     embedded = layers.Embedding(n_classes, embedding_dim)(label_input)
     dense = layers.Dense(1000)(embedded)
@@ -140,7 +139,7 @@ def generator_loss(fake_output):
 def load_furious_traces(n, timepoint, window):
     traces = None
 
-    for i in range(1):
+    for i in range(19):
         file = TRACES_FOLDER_FURIOUS + ('random_keys_traces_{}'.format(i)) + '.npy'
         print('Loading {}'.format(file))
         traces_full = np.load(file, allow_pickle=True)[:, timepoint - window // 2: timepoint + window // 2]
@@ -192,7 +191,7 @@ def reshaped_gan(dataset):
     return reshaped_traces
 
 
-def load_dataset_gan(n_traces=200000, variable=None, training=True, window=1000):
+def load_dataset_gan(n_traces=200000, variable=None, window=1000):
     values = np.load(REALVALUES_FOLDER_FURIOUS + 's' + '.npy')[VARIABLE_LIST['s1'].index(variable), :]
     timepoint = np.load(TIMEPOINTS_FOLDER_FURIOUS + 's' + '.npy')[VARIABLE_LIST['s1'].index(variable)]
     traces = load_furious_traces(n_traces, timepoint, window)
@@ -224,21 +223,6 @@ def train_step(images, target):
     generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
     return disc_loss, gen_loss, fake_loss, real_loss, fake_accuracy, real_accuracy
-
-
-def generate_image(model, n_classes=256):
-    # sample a label between 0 and 255
-    label = np.random.randint(0, n_classes-1)
-    noise = tf.random.normal([1, 100])
-
-    image = model([noise, label], training=False)
-    image = tf.reshape(image, (1000,))
-
-    plt.title("Generated power trace")
-    plt.ylabel("Power values")
-    image_plot = plt.plot(image)
-
-    return image_plot
 
 
 def train(dataset, epochs, dataset_size, var, bs):
