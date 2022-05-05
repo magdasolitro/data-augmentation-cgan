@@ -10,13 +10,8 @@ from numpy import cov
 from numpy import trace
 from numpy import iscomplexobj
 from numpy.random import random
-#from scipy.linalg import sqrtm
-import os
-# import tensorflow as tf
-# from tensorflow.keras.models import load_model
-# from gan import make_generator_model,make_discriminator_model
-# from utility import *
-from scalib.metrics import SNR
+from scipy.linalg import sqrtm
+# from scalib.metrics import SNR
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -74,14 +69,14 @@ def string_to_dict():
 
 
 def plot_accuracy_loss():
-    metrics = pd.read_csv('metrics.csv', usecols = ['gen_loss','real_acc','fake_acc','fake_loss','real_loss'])
+    metrics = pd.read_csv('metrics.csv', usecols=['gen_loss', 'real_acc', 'fake_acc', 'fake_loss', 'real_loss'])
 
     d = string_to_dict()
     df = pd.DataFrame(data=d)
     print(df)
 
-    metrics['MA_fake_acc'] = df['fake_acc'].rolling(window = 100).mean()
-    metrics['MA_real_acc'] = df['real_acc'].rolling(window = 100).mean()
+    metrics['MA_fake_acc'] = df['fake_acc'].rolling(window=100).mean()
+    metrics['MA_real_acc'] = df['real_acc'].rolling(window=100).mean()
 
     df = df.astype(float)
 
@@ -112,25 +107,27 @@ if __name__ == "__main__":
 #     real_image = reshape_array(train_data[5])
 #     #plt.plot(fake_image)
 #     plt.plot(real_image)
-#
-#
-#
-# def calculate_fid(act1, act2):
-# 	# calculate mean and covariance statistics
-# 	mu1, sigma1 = act1.mean(axis=0), cov(act1, rowvar=False)
-# 	mu2, sigma2 = act2.mean(axis=0), cov(act2, rowvar=False)
-# 	# calculate sum squared difference between means
-# 	ssdiff = numpy.sum((mu1 - mu2)**2.0)
-# 	# calculate sqrt of product between cov
-# 	covmean = sqrtm(sigma1.dot(sigma2))
-# 	# check and correct imaginary numbers from sqrt
-# 	if iscomplexobj(covmean):
-# 		covmean = covmean.real
-# 	# calculate score
-# 	fid = ssdiff + trace(sigma1 + sigma2 - 2.0 * covmean)
-# 	return fid
-#
-#
+
+
+def calculate_fid(act1, act2):
+    # calculate mean and covariance statistics
+    mu1, sigma1 = act1.mean(axis=0), cov(act1, rowvar=False)
+    mu2, sigma2 = act2.mean(axis=0), cov(act2, rowvar=False)
+
+    # calculate sum squared difference between means
+    ssdiff = numpy.sum((mu1 - mu2)**2.0)
+
+    # calculate sqrt of product between cov
+    covmean = sqrtm(sigma1.dot(sigma2))
+
+    # check and correct imaginary numbers from sqrt
+    if iscomplexobj(covmean):
+    	covmean = covmean.real
+
+    # calculate score
+    fid = ssdiff + trace(sigma1 + sigma2 - 2.0 * covmean)
+    return fid
+
 # def assess_gan(distorsion):
 #     fake_image = np.load("images/"+"generated_image_{}.npy".format(distorsion))
 #     train_data = load_dataset_gan(distorsion)
@@ -140,34 +137,3 @@ if __name__ == "__main__":
 #     random_fid = calculate_fid(random_image,real_image.reshape(500,-1))
 #     print(fid)
 #     print(random_fid)
-
-
-
-
-# generator = make_generator_model()
-# discriminator = make_discriminator_model()
-# generator_optimizer = tf.keras.optimizers.Adam(1e-4)
-# discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
-# checkpoint_dir = './training_checkpoints/'
-# checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt-5")
-# checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
-#                                   discriminator_optimizer=discriminator_optimizer,
-#                                   generator=generator,
-#                                   discriminator=discriminator)
-# noise = tf.random.normal([1, 100])
-
-
-# # # checkpoint.restore(checkpoint_prefix)
-
-# generator = load_model(MODEL_FOLDER+'gan_generator_2708.h5')
-
-
-
-# generated_image = generator(noise, training=False)
-# reshaped_image= reshape_tensor(generated_image)
-# np.save("generated_image.npy",reshaped_image)
-# plt.plot(reshaped_image)
-
-# distorsion = 'res'
-
-# train_data = load_dataset_gan(distorsion)
