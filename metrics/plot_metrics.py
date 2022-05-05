@@ -5,11 +5,12 @@ Created on Fri Oct 22 09:41:26 2021
 @author: martho
 """
 
-import numpy
+import numpy as np
 from numpy import cov
 from numpy import trace
 from numpy import iscomplexobj
 from numpy.random import random
+import scipy
 from scipy.linalg import sqrtm
 import os
 from scalib.metrics import SNR
@@ -25,6 +26,19 @@ real_acc = []
 fake_acc = []
 fake_loss = []
 real_loss = []
+
+def retrieve_window():
+    # retrieve significant trace window around the first timepoint
+    time_points = np.load('/home/solitroma/Desktop/small project/dataset_joey/timepoints/s.npy')
+
+    # time point in the first round in which AES applies SubBytes to the first byte of the state
+    this_timepoint = time_points[0]
+
+    # select window around the point
+    start = this_timepoint - 500
+    end = this_timepoint + 500
+
+    return start, end
 
 def string_to_dict():
     file = open('metrics.csv')
@@ -74,7 +88,6 @@ def plot_accuracy_loss():
 
     d = string_to_dict()
     df = pd.DataFrame(data=d)
-    print(df)
 
     metrics['MA_fake_acc'] = df['fake_acc'].rolling(window=100).mean()
     metrics['MA_real_acc'] = df['real_acc'].rolling(window=100).mean()
@@ -97,10 +110,6 @@ def plot_accuracy_loss():
     #gl.plot(ax = ax)
 
 
-if __name__ == "__main__":
-    plot_accuracy_loss()
-
-
 # def plot_image():
 #     #fake_image = np.load("generated_image.npy")
 #     distorsion = 'ma'
@@ -116,7 +125,7 @@ def calculate_fid(act1, act2):
     mu2, sigma2 = act2.mean(axis=0), cov(act2, rowvar=False)
 
     # calculate sum squared difference between means
-    ssdiff = numpy.sum((mu1 - mu2)**2.0)
+    ssdiff = np.sum((mu1 - mu2)**2.0)
 
     # calculate sqrt of product between cov
     covmean = sqrtm(sigma1.dot(sigma2))
@@ -127,6 +136,7 @@ def calculate_fid(act1, act2):
 
     # calculate score
     fid = ssdiff + trace(sigma1 + sigma2 - 2.0 * covmean)
+
     return fid
 
 # def assess_gan(distorsion):
@@ -138,3 +148,29 @@ def calculate_fid(act1, act2):
 #     random_fid = calculate_fid(random_image,real_image.reshape(500,-1))
 #     print(fid)
 #     print(random_fid)
+
+
+if __name__ == "__main__":
+    # plot accuracy and loss
+    plot_accuracy_loss()
+
+    # compute Singal-To-Noise ratio
+    all_fake_traces = np.load('images.npy')
+    all_fake_traces = all_fake_traces.astype(np.int16)
+
+    labels = np.load('labels.npy')
+    labels = labels.astype(np.uint16)
+    labels = np.reshape(labels, (10000, 1))
+
+    snr = SNR(255, 1000)
+    snr.fit_u(all_fake_traces, labels)
+    snr_val = snr.get_snr()
+    # print(snr_val)
+
+    # compute FID score
+    start, end = retrieve_window()
+    all_real_traces = np.load('/home/solitroma/Desktop/small project/dataset_joey/tracedata/random_keys_traces_0.npy')
+    real_trace = all_real_traces[0][start:end]
+    fake_trace = all_fake_traces[0]
+    fid = calculate_fid(fake_trace, real_trace)
+    print(fid)
