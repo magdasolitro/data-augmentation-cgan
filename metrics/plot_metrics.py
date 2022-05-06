@@ -14,6 +14,7 @@ import scipy
 from scipy.linalg import sqrtm
 import os
 from scalib.metrics import SNR
+import sys
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -150,27 +151,44 @@ def calculate_fid(act1, act2):
 #     print(random_fid)
 
 
+def normalise_trace(trace, num_samples=1000, min=-10000, max=20000):
+    for val in range(num_samples):
+        trace[val] = (trace[val] * (max-min)) + min
+
+    return trace
+
+
 if __name__ == "__main__":
     # plot accuracy and loss
     plot_accuracy_loss()
 
-    # compute Singal-To-Noise ratio
-    all_fake_traces = np.load('images.npy')
-    all_fake_traces = all_fake_traces.astype(np.int16)
+    # compute Signal-To-Noise ratio
+    fake_traces = np.load('images.npy')
+
+    for trace in range(fake_traces.shape[0]):
+        fake_traces[trace] = normalise_trace(fake_traces[trace])
+    fake_traces = fake_traces.astype(np.int16)
+
+    # plot1 = plt.figure(1)
+    # for i in range(10):
+    #     plt.plot(fake_traces[i])
 
     labels = np.load('labels.npy')
     labels = labels.astype(np.uint16)
     labels = np.reshape(labels, (10000, 1))
 
     snr = SNR(255, 1000)
-    snr.fit_u(all_fake_traces, labels)
+    snr.fit_u(fake_traces, labels)
     snr_val = snr.get_snr()
-    # print(snr_val)
+
+    # plot2 = plt.figure(2)
+    # plt.plot(snr_val[0])
+    # plt.show()
 
     # compute FID score
     start, end = retrieve_window()
     all_real_traces = np.load('/home/solitroma/Desktop/small project/dataset_joey/tracedata/random_keys_traces_0.npy')
     real_trace = all_real_traces[0][start:end]
-    fake_trace = all_fake_traces[0]
+    fake_trace = fake_traces[0]
     fid = calculate_fid(fake_trace, real_trace)
     print(fid)
