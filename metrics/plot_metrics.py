@@ -10,11 +10,9 @@ from numpy import cov
 from numpy import trace
 from numpy import iscomplexobj
 from numpy.random import random
-import scipy
+
 from scipy.linalg import sqrtm
-import os
 from scalib.metrics import SNR
-import sys
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -28,6 +26,13 @@ fake_acc = []
 fake_loss = []
 real_loss = []
 
+REAL_TRS_PATH = '/home/solitroma/Desktop/small project/dataset_joey/tracedata/random_keys_traces_1.npy'
+REAL_LB_PATH = '/home/solitroma/Desktop/small project/dataset_joey/realvalues/s.npy'
+
+FAKE_TRS_PATH = '/home/solitroma/Desktop/small project/data-augmentation-cgan/metrics/images.npy'
+FAKE_LB_PATH = '/home/solitroma/Desktop/small project/data-augmentation-cgan/metrics/labels.npy'
+
+
 def retrieve_window():
     # retrieve significant trace window around the first timepoint
     time_points = np.load('/home/solitroma/Desktop/small project/dataset_joey/timepoints/s.npy')
@@ -40,6 +45,7 @@ def retrieve_window():
     end = this_timepoint + 500
 
     return start, end
+
 
 def string_to_dict():
     file = open('metrics.csv')
@@ -75,13 +81,11 @@ def string_to_dict():
         real_loss.append(tensor_value)
 
     # from float to dictionary
-    dict = {'gen_loss': gen_loss,
+    return {'gen_loss': gen_loss,
             'real_acc': real_acc,
             'fake_acc': fake_acc,
             'fake_loss': fake_loss,
             'real_loss': real_loss}
-
-    return dict
 
 
 def plot_accuracy_loss():
@@ -95,29 +99,20 @@ def plot_accuracy_loss():
 
     df = df.astype(float)
 
-    plot1 = plt.figure(1)
-    ax = plt.gca()
-    metrics.plot(y='MA_fake_acc', ax=ax)
-    metrics.plot(y='MA_real_acc', ax=ax)
-
-    plot2 = plt.figure(2)
-    ax = plt.gca()
-    df.plot(y='gen_loss', ax=ax)
-    df.plot(y='fake_loss', ax=ax)
-    df.plot(y='real_loss', ax=ax)
-
-    plt.show()
+    # plot1 = plt.figure(1)
+    # ax = plt.gca()
+    # metrics.plot(y='MA_fake_acc', ax=ax)
+    # metrics.plot(y='MA_real_acc', ax=ax)
+    #
+    # plot2 = plt.figure(2)
+    # ax = plt.gca()
+    # df.plot(y='gen_loss', ax=ax)
+    # df.plot(y='fake_loss', ax=ax)
+    # df.plot(y='real_loss', ax=ax)
+    #
+    # plt.show()
 
     #gl.plot(ax = ax)
-
-
-# def plot_image():
-#     #fake_image = np.load("generated_image.npy")
-#     distorsion = 'ma'
-#     train_data = load_dataset_gan(distorsion)
-#     real_image = reshape_array(train_data[5])
-#     #plt.plot(fake_image)
-#     plt.plot(real_image)
 
 
 def calculate_fid(act1, act2):
@@ -140,17 +135,8 @@ def calculate_fid(act1, act2):
 
     return fid
 
-# def assess_gan(distorsion):
-#     fake_image = np.load("images/"+"generated_image_{}.npy".format(distorsion))
-#     train_data = load_dataset_gan(distorsion)
-#     real_image = reshape_array(train_data[0])
-#     random_image = np.random.sample(10000).reshape(500,-1)
-#     fid = calculate_fid(fake_image.reshape(500,-1),real_image.reshape(500,-1))
-#     random_fid = calculate_fid(random_image,real_image.reshape(500,-1))
-#     print(fid)
-#     print(random_fid)
 
-
+# maps fake trace's values in the range [-10000, 20000], which is the range of real traces
 def normalise_trace(trace, num_samples=1000, min=-10000, max=20000):
     for val in range(num_samples):
         trace[val] = (trace[val] * (max-min)) + min
@@ -158,37 +144,78 @@ def normalise_trace(trace, num_samples=1000, min=-10000, max=20000):
     return trace
 
 
+def calculate_snr(fake_trs_path, fake_labels_path, real_trs_path, real_labels_path):
+    # load fake traces
+    fake_traces = np.load(fake_trs_path)
+
+    # normalise fake traces between -10000 and 20000 (range of values of a real trace)
+    for trace in range(fake_traces.shape[0]):
+        fake_traces[trace] = normalise_trace(fake_traces[trace])
+
+    # type conversion required for snr computation
+    fake_traces = fake_traces.astype(np.int16)
+
+    # load the labels
+    fake_labels = np.load(fake_labels_path)
+    # type conversion required for snr computation
+    fake_labels = fake_labels.astype(np.uint16)
+    fake_labels = np.reshape(fake_labels, (10000, 1))
+
+    # compute snr values
+    snr_fake = SNR(255, 1000)
+    snr_fake.fit_u(fake_traces, fake_labels)
+    snr_val_fake = snr_fake.get_snr()
+
+    # load real traces
+    real_traces = np.load(real_trs_path)
+    start, end = retrieve_window()
+    real_traces = real_traces[:, start:end]
+    real_traces = real_traces.astype(np.int16)
+
+    real_labels = np.load(real_labels_path)
+    # only consider the first intermediate result for the first 10000 traces!
+    real_labels = real_labels[0, :10000]
+    real_labels = np.reshape(real_labels, (10000, 1))
+    real_labels = real_labels.astype(np.uint16)
+
+    snr_real = SNR(255, 1000)
+    snr_real.fit_u(real_traces, real_labels)
+    snr_val_real = snr_real.get_snr()
+
+    fig, axs = plt.subplots(2, 1, constrained_layout=True)
+    axs[0].plot(snr_val_fake[0])
+    axs[0].set_title('SNR (fake traces)')
+    axs[0].set_xlabel('Sample')
+    axs[0].set_ylabel('SNR')
+    fig.suptitle('SNR', fontsize=16)
+
+    axs[1].plot(snr_val_real[0])
+    axs[1].set_title('SNR (real traces)')
+    axs[1].set_xlabel('Sample')
+    axs[1].set_ylabel('SNR')
+
+    plt.show()
+
+
 if __name__ == "__main__":
     # plot accuracy and loss
     plot_accuracy_loss()
 
-    # compute Signal-To-Noise ratio
-    fake_traces = np.load('images.npy')
-
-    for trace in range(fake_traces.shape[0]):
-        fake_traces[trace] = normalise_trace(fake_traces[trace])
-    fake_traces = fake_traces.astype(np.int16)
-
-    # plot1 = plt.figure(1)
-    # for i in range(10):
-    #     plt.plot(fake_traces[i])
-
-    labels = np.load('labels.npy')
-    labels = labels.astype(np.uint16)
-    labels = np.reshape(labels, (10000, 1))
-
-    snr = SNR(255, 1000)
-    snr.fit_u(fake_traces, labels)
-    snr_val = snr.get_snr()
-
-    # plot2 = plt.figure(2)
-    # plt.plot(snr_val[0])
-    # plt.show()
+    # compute Signal-to-Noise ratio
+    calculate_snr(FAKE_TRS_PATH, FAKE_LB_PATH, REAL_TRS_PATH, REAL_LB_PATH)
 
     # compute FID score
     start, end = retrieve_window()
-    all_real_traces = np.load('/home/solitroma/Desktop/small project/dataset_joey/tracedata/random_keys_traces_0.npy')
+
+    all_real_traces = np.load(REAL_TRS_PATH)
     real_trace = all_real_traces[0][start:end]
+
+    fake_traces = np.load(FAKE_TRS_PATH)
     fake_trace = fake_traces[0]
-    fid = calculate_fid(fake_trace, real_trace)
-    print(fid)
+
+    fid1 = calculate_fid(fake_trace.reshape(500, -1), real_trace.reshape(500, -1))
+    fid2 = calculate_fid(fake_trace.reshape(500, -1), fake_trace.reshape(500, -1))
+
+    print(fid1)
+    print(fid2)
+
