@@ -202,7 +202,7 @@ if __name__ == "__main__":
     plot_accuracy_loss()
 
     # compute Signal-to-Noise ratio
-    calculate_snr(FAKE_TRS_PATH, FAKE_LB_PATH, REAL_TRS_PATH, REAL_LB_PATH)
+    # calculate_snr(FAKE_TRS_PATH, FAKE_LB_PATH, REAL_TRS_PATH, REAL_LB_PATH)
 
     # compute FID score
     start, end = retrieve_window()
@@ -212,9 +212,13 @@ if __name__ == "__main__":
 
     fake_traces = np.load(FAKE_TRS_PATH)
     fake_trace = fake_traces[0]
+    fake_trace = normalise_trace(fake_trace)
 
-    fid1 = calculate_fid(fake_trace.reshape(500, -1), real_trace.reshape(500, -1))
-    fid2 = calculate_fid(fake_trace.reshape(500, -1), fake_trace.reshape(500, -1))
+    fid1 = calculate_fid(fake_trace.reshape(50, 20), real_trace.reshape(50, 20))
+    plt.plot(fake_trace.reshape(50, 20))
+
+    plt.show()
+    fid2 = calculate_fid(fake_trace.reshape(50, 20), fake_trace.reshape(50, 20))
 
     print(fid1)
     print(fid2)
