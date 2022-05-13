@@ -11,7 +11,6 @@ from numpy import trace
 from numpy import iscomplexobj
 
 from scipy.linalg import sqrtm
-from scalib.metrics import SNR
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -25,7 +24,7 @@ fake_acc = []
 fake_loss = []
 real_loss = []
 
-REAL_TRS_PATH = '/home/solitroma/Desktop/small project/dataset_joey/tracedata/random_keys_traces_5.npy'
+REAL_TRS_PATH = '/home/solitroma/Desktop/small project/dataset_joey/tracedata/random_keys_traces_0.npy'
 REAL_LB_PATH = '/home/solitroma/Desktop/small project/dataset_joey/realvalues/s.npy'
 
 FAKE_TRS_PATH = '/home/solitroma/Desktop/small project/data-augmentation-cgan/metrics/images.npy'
@@ -50,8 +49,8 @@ def string_to_dict():
     file = open('metrics.csv')
     csvreader = csv.reader(file)
 
-    header = []
-    header = next(csvreader)
+    # header = []
+    # header = next(csvreader)
 
     for row in csvreader:
         tensor = row[1]
@@ -141,7 +140,7 @@ def normalise_trace(trace, num_samples=1000, min=-10000, max=20000):
     return trace
 
 
-def calculate_snr(fake_trs_path, fake_labels_path, real_trs_path, real_labels_path):
+def compute_pearsoncorrelation(fake_trs_path, fake_labels_path, real_trs_path, real_labels_path):
     # load fake traces
     fake_traces = np.load(fake_trs_path)
 
@@ -151,57 +150,68 @@ def calculate_snr(fake_trs_path, fake_labels_path, real_trs_path, real_labels_pa
 
     # type conversion required for snr computation
     fake_traces = fake_traces.astype(np.int16)
-
+    fake_traces = np.swapaxes(fake_traces, 1, 0)
     fake_labels = np.load(fake_labels_path)         # load the labels
     fake_labels = fake_labels.astype(np.uint16)     # type conversion required for snr computation
-    fake_labels = np.reshape(fake_labels, (10000, 1))
 
-    # compute snr values
-    snr_fake = SNR(255, 1000)
-    snr_fake.fit_u(fake_traces, fake_labels)
-    snr_val_fake = snr_fake.get_snr()
-    snr_val_fake_mean = np.mean(snr_val_fake, axis=0)
+    # Pearson's Correlation
+    correlations_fake = np.array([np.abs(np.corrcoef(fake_labels, timeslice))[0, 1] for timeslice in fake_traces])
 
     # load real traces
     real_traces = np.load(real_trs_path)
     start, end = retrieve_window()
     real_traces = real_traces[:, start:end]
     real_traces = real_traces.astype(np.int16)
+    real_traces = np.swapaxes(real_traces, 1, 0)
 
     real_labels = np.load(real_labels_path)
     real_labels = real_labels[0, :10000]    # only consider the first intermediate result for the first 10000 traces!
-    real_labels = np.reshape(real_labels, (10000, 1))
     real_labels = real_labels.astype(np.uint16)
 
-    snr_real = SNR(255, 1000)
-    snr_real.fit_u(real_traces, real_labels)
-    snr_val_real = snr_real.get_snr()
+    correlations_real = np.array([np.abs(np.corrcoef(real_labels, timeslice))[0, 1] for timeslice in real_traces])
 
     fig, axs = plt.subplots(2, 1, constrained_layout=True)
-    axs[0].plot(snr_val_fake[0])
-    axs[0].set_title('SNR (fake traces)')
+    axs[0].plot(correlations_fake)
+    axs[0].set_title("Pearson's Correlation (fake traces)")
     axs[0].set_xlabel('Sample')
-    axs[0].set_ylabel('SNR')
-    fig.suptitle('SNR', fontsize=16)
+    axs[0].set_ylabel('Correlation')
 
-    axs[1].plot(snr_val_real[0])
-    axs[1].set_title('SNR (real traces)')
+    axs[1].plot(correlations_real)
+    axs[1].set_title("Pearson's Correlation (real traces)")
     axs[1].set_xlabel('Sample')
-    axs[1].set_ylabel('SNR')
+    axs[1].set_ylabel('Correlation')
+
+    plt.show()
+
+
+# Plot real and fake traces' mean values (for visual comparison)
+def plot_traces(fake_trs_mean, real_trs_mean):
+    fig, axs = plt.subplots(2, 1)
+    axs[1].plot(fake_trs_mean)
+    axs[1].set_title('Fake traces (mean)')
+    axs[1].set_xlabel('Time points')
+    axs[1].set_ylabel('Power value')
+
+    axs[0].plot(real_trs_mean)
+    axs[0].set_title('Real traces (mean)')
+    axs[0].set_xlabel('Time points')
+    axs[0].set_ylabel('Power value')
+
+    plt.subplots_adjust(hspace=0.7)
 
     plt.show()
 
 
 if __name__ == "__main__":
     # plot accuracy and loss
-    plot_accuracy_loss()
+    # plot_accuracy_loss()
 
-    # compute Signal-to-Noise ratio
-    # calculate_snr(FAKE_TRS_PATH, FAKE_LB_PATH, REAL_TRS_PATH, REAL_LB_PATH)
+    # compute Pearson's Correlation
+    compute_pearsoncorrelation(FAKE_TRS_PATH, FAKE_LB_PATH, REAL_TRS_PATH, REAL_LB_PATH)
 
     # compute FID score
-    # start, end = retrieve_window()
-    start, end = 8100, 9100
+    start, end = retrieve_window()
+    #start, end = 8100, 9100
 
     all_real_traces = np.load(REAL_TRS_PATH)
     real_traces_mean = np.mean(all_real_traces, axis=0)
@@ -212,21 +222,7 @@ if __name__ == "__main__":
     fake_traces_mean = np.mean(fake_traces, axis=0)
     fake_traces_mean = normalise_trace(fake_traces_mean)
 
-    # Plot real and fake traces
-    # fig, axs = plt.subplots(2, 1)
-    # axs[1].plot(fake_traces_mean)
-    # axs[1].set_title('Fake traces (mean)')
-    # axs[1].set_xlabel('Time points')
-    # axs[1].set_ylabel('Power value')
-    #
-    # axs[0].plot(real_traces_mean)
-    # axs[0].set_title('Real traces (mean)')
-    # axs[0].set_xlabel('Time points')
-    # axs[0].set_ylabel('Power value')
-    #
-    # plt.subplots_adjust(hspace=0.7)
-    #
-    # plt.show()
+    # plot_traces(fake_traces_mean, real_traces_mean)
 
     fid1 = calculate_fid(fake_traces_mean.reshape(50, 20), real_traces_mean.reshape(50, 20))
     fid2 = calculate_fid(fake_traces_mean.reshape(50, 20), fake_traces_mean.reshape(50, 20))
