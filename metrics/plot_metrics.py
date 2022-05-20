@@ -133,7 +133,7 @@ def calculate_fid(act1, act2):
 
 
 # maps fake trace's values in the range [-10000, 20000], which is the range of real traces
-def normalise_trace(trace, num_samples=1000, min=-10000, max=20000):
+def normalise_trace(trace, num_samples=1000, min=-6523, max=13789):
     for val in range(num_samples):
         trace[val] = (trace[val] * (max-min)) + min
 
@@ -201,32 +201,41 @@ def plot_traces(fake_trs_mean, real_trs_mean):
 
     plt.show()
 
+    # Plots fake and real traces together
+    # plt.plot(fake_trs_mean)
+    # plt.plot(real_trs_mean)
+    #
+    # plt.show()
+
 
 if __name__ == "__main__":
     # plot accuracy and loss
     # plot_accuracy_loss()
 
     # compute Pearson's Correlation
-    compute_pearsoncorrelation(FAKE_TRS_PATH, FAKE_LB_PATH, REAL_TRS_PATH, REAL_LB_PATH)
+    # compute_pearsoncorrelation(FAKE_TRS_PATH, FAKE_LB_PATH, REAL_TRS_PATH, REAL_LB_PATH)
 
     # compute FID score
-    start, end = retrieve_window()
-    #start, end = 8100, 9100
+    #start, end = retrieve_window()
+    start, end = 8070, 9070
 
     all_real_traces = np.load(REAL_TRS_PATH)
     real_traces_mean = np.mean(all_real_traces, axis=0)
     real_traces_mean = real_traces_mean[start:end]
+
+    # Retrieve maximum and minimum value in the portion of the traceTr
+    # print('max: ' + str(np.amax(real_traces_mean)))
+    # print('min: ' + str(np.amin(real_traces_mean)))
 
     fake_traces = np.load(FAKE_TRS_PATH)
     # compute the mean of all traces
     fake_traces_mean = np.mean(fake_traces, axis=0)
     fake_traces_mean = normalise_trace(fake_traces_mean)
 
-    # plot_traces(fake_traces_mean, real_traces_mean)
+    plot_traces(fake_traces_mean, real_traces_mean)
 
     fid1 = calculate_fid(fake_traces_mean.reshape(50, 20), real_traces_mean.reshape(50, 20))
     fid2 = calculate_fid(fake_traces_mean.reshape(50, 20), fake_traces_mean.reshape(50, 20))
 
     print(fid1)
     print(fid2)
-
