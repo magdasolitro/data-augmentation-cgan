@@ -10,6 +10,7 @@ from tensorflow.keras import layers
 from tensorflow.keras.models import Model
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import argparse
 import time
 import sys
@@ -18,10 +19,17 @@ from tensorflow.keras import backend as K
 
 # Batch and shuffle the data
 
+if sys.platform == 'win32':
+    DATASET_FOLDER_FURIOUS = 'D:/dataset_joey/'
+else:
+    DATASET_FOLDER_FURIOUS = '/home/solitroma/Desktop/small project/dataset_joey/'
 
-DATASET_FOLDER_FURIOUS = 'D:/dataset_joey/' if sys.platform == 'win32' else '/media/usb/MIG/2.0 TB Volume/dataset_furious/'
+DATASET_FOLDER_FURIOUS = 'D:/dataset_joey/' if sys.platform == 'win32' else '/srv/dataset_furious/'
+#DATASET_FOLDER_FURIOUS = '/home/solitroma/Desktop/small project/dataset_joey/'
 
-PROJECT_FOLDER = 'C:/Users/martho/Documents/data-augmentation-cgan/' if sys.platform == 'win32' else '/root/Projets/data-augmentation-cgan/'
+PROJECT_FOLDER = 'C:/Users/martho/Documents/data-augmentation-cgan/' if sys.platform == 'win32' else '/home/martho/Projets/data-augmentation-cgan/'
+#PROJECT_FOLDER = '/home/solitroma/Desktop/small project/data-augmentation-cgan/'
+
 METRICS_FOLDER = PROJECT_FOLDER + 'metrics/'
 MODEL_FOLDER = PROJECT_FOLDER + 'models/'
 
@@ -50,7 +58,7 @@ def make_generator_model(n_classes=256, embedding_dim=100):
     embedded = layers.Embedding(n_classes, embedding_dim)(label_input)
 
     concat_input = layers.Concatenate()([reshaped, embedded])
-
+  
     x = layers.Dense(500)(concat_input)
     x = layers.Reshape((500, 1))(x)
     x = layers.Conv1DTranspose(500, 5, strides=1, padding='same', use_bias=False)(x)
@@ -71,10 +79,9 @@ def make_generator_model(n_classes=256, embedding_dim=100):
     x = layers.AveragePooling1D(1, strides=10)(x)
 
     output = layers.Conv1DTranspose(20, 5, strides=1, padding='same', use_bias=False, activation='sigmoid')(x)
-
+ 
     model = Model(inputs=[noise_input, label_input], outputs=[output])
     model.summary()
-
     return model
 
 
@@ -87,10 +94,10 @@ def make_discriminator_model(n_classes=256, embedding_dim=8):
     concat_input = layers.Concatenate()([image_input, reshaped])
 
     x = layers.Conv1D(32, 5, strides=2, padding='same')(concat_input)
-    x = layers.Lambda(lambda x: K.l2_normalize(x, axis=1))(x)
+    x = layers.Lambda(lambda x: K.l2_normalize(x,axis=1))(x)
     x = layers.BatchNormalization()(x)
     x = layers.LeakyReLU()(x)
-
+    
     x = layers.Conv1D(64, 5, strides=2, padding='same')(x)
     x = layers.Lambda(lambda x: K.l2_normalize(x, axis=1))(x)
     x = layers.BatchNormalization()(x)
@@ -103,11 +110,9 @@ def make_discriminator_model(n_classes=256, embedding_dim=8):
     x = layers.AveragePooling1D(2, strides=2)(x)
 
     x = layers.Flatten()(x)
-    x = layers.Dense(50, activation='relu')(x)
-    x = layers.Dense(100, activation='relu')(x)
-    x = layers.Dense(50, activation='relu')(x)
-    output = layers.Dense(1, activation='sigmoid')(x)
 
+    output = layers.Dense(1, activation='sigmoid')(x)
+    
     model = Model(inputs=[image_input, label_input], outputs=[output])
 
     return model
@@ -123,7 +128,8 @@ def discriminator_loss(real_output, fake_output):
 def discriminator_accuracy(real_output, fake_output):
     real_accuracy = tf.reduce_sum(tf.where(real_output >= 0.5, tf.ones_like(real_output), tf.zeros_like(real_output)))
     fake_accuracy = tf.reduce_sum(tf.where(fake_output >= 0.5, tf.zeros_like(fake_output), tf.ones_like(fake_output)))
-    return fake_accuracy, real_accuracy
+    return fake_accuracy/2, real_accuracy/2
+
 
 
 def generator_loss(fake_output):
@@ -133,7 +139,7 @@ def generator_loss(fake_output):
 def load_furious_traces(n, timepoint, window):
     traces = None
 
-    for i in range(20):
+    for i in range(19):
         file = TRACES_FOLDER_FURIOUS + ('random_keys_traces_{}'.format(i)) + '.npy'
         print('Loading {}'.format(file))
         traces_full = np.load(file, allow_pickle=True)[:, timepoint - window // 2: timepoint + window // 2]
@@ -180,11 +186,12 @@ def normalise_neural_traces(X):
 def reshaped_gan(dataset):
     print(dataset.shape)
     normalised_traces = normalise_neural_traces(dataset)
+    reshaped_traces = normalised_traces.reshape((normalised_traces.shape[0], 50, 20))
 
-    return normalised_traces.reshape((normalised_traces.shape[0], 50, 20))
+    return reshaped_traces
 
 
-def load_dataset_gan(n_traces=200000, variable=None, training=True, window=1000):
+def load_dataset_gan(n_traces=200000, variable=None, window=1000):
     values = np.load(REALVALUES_FOLDER_FURIOUS + 's' + '.npy')[VARIABLE_LIST['s1'].index(variable), :]
     timepoint = np.load(TIMEPOINTS_FOLDER_FURIOUS + 's' + '.npy')[VARIABLE_LIST['s1'].index(variable)]
     traces = load_furious_traces(n_traces, timepoint, window)
@@ -192,6 +199,7 @@ def load_dataset_gan(n_traces=200000, variable=None, training=True, window=1000)
     idx = np.random.permutation(traces.shape[0])
     traces = traces[idx]
     real_values = values[idx]
+
     return traces, real_values
 
 
@@ -217,7 +225,7 @@ def train_step(images, target):
     return disc_loss, gen_loss, fake_loss, real_loss, fake_accuracy, real_accuracy
 
 
-def train(dataset, epochs, dataset_size, var):
+def train(dataset, epochs, dataset_size, var, bs):
     loss_real_dict = {}
     loss_fake_dict = {}
     loss_gen_dict = {}
@@ -241,12 +249,12 @@ def train(dataset, epochs, dataset_size, var):
             epoch_r_loss += r_loss
             epoch_f_acc += f_accuracy
             epoch_r_acc += r_accuracy
-        epoch_d_loss /= (dataset_size / 100)
-        epoch_g_loss /= (dataset_size / 100)
-        epoch_f_loss /= (dataset_size / 100)
-        epoch_r_loss /= (dataset_size / 100)
-        epoch_f_acc /= (dataset_size / 100)
-        epoch_r_acc /= (dataset_size / 100)
+        epoch_d_loss /= (dataset_size / bs)
+        epoch_g_loss /= (dataset_size / bs)
+        epoch_f_loss /= (dataset_size / bs)
+        epoch_r_loss /= (dataset_size / bs)
+        epoch_f_acc /= (dataset_size / bs)
+        epoch_r_acc /= (dataset_size / bs)
         # Save the model every 15 epochs
         loss_real_dict[epoch] = epoch_r_loss
         loss_fake_dict[epoch] = epoch_f_loss
@@ -266,7 +274,7 @@ def train(dataset, epochs, dataset_size, var):
                 MODEL_FOLDER + '{}_gan_discriminator_{}.h5'.format(var if not var is None else 'all', epoch + 1))
             best = abs(epoch_r_acc - 50) + abs(epoch_f_acc - 50)
             if best < 1:
-                print('Early break ! ')
+                print('Early break!')
                 return loss_real_dict, loss_fake_dict, loss_gen_dict, acc_real_dict, acc_fake_dict
     return loss_real_dict, loss_fake_dict, loss_gen_dict, acc_real_dict, acc_fake_dict
 
@@ -312,7 +320,7 @@ if __name__ == "__main__":
 
     train_dataset = tf.data.Dataset.from_tensor_slices((train_data, real_values)).shuffle(train_data.shape[0]).batch(
         BATCH_SIZE)
-    rl, fl, gl, ra, fa = train(train_dataset, EPOCHS, train_data.shape[0], VARIABLE)
+    rl, fl, gl, ra, fa = train(train_dataset, EPOCHS, train_data.shape[0], VARIABLE,BATCH_SIZE)
     metrics = pd.DataFrame.from_dict(rl, columns=['real_loss'], orient='index')
     metrics.insert(1, 'fake_loss', fl.values(), True)
     metrics.insert(1, 'fake_acc', fa.values(), True)
